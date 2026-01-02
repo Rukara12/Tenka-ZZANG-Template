@@ -25,7 +25,6 @@
             margin: 0; padding: 0; 
             touch-action: manipulation; 
             font-family: 'PyeongtaekSunset', sans-serif; 
-            /* 가로 스크롤 방지 추가 */
             overflow-x: hidden;
             width: 100%;
         }
@@ -40,35 +39,48 @@
             background-color: #f0f0f0;
             user-select: none;
             touch-action: none;
-            /* 축소 시 기준점을 상단 중앙으로 설정 */
             transform-origin: top center;
         }
 
-        /* 모바일 대응: 화면 너비가 1024px보다 작을 때 자동 축소 */
         @media screen and (max-width: 1024px) {
             #meme-container {
-                /* 화면 너비에 맞춰 scale 계산 (여백 고려 약 95% 수준) */
                 transform: scale(calc(100vw / 1060));
                 margin-bottom: calc(765px * (calc(100vw / 1060) - 1) + 20px);
             }
         }
 
+        /* 사진 레이어 수정 */
         .photo-layer {
             position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
             overflow: hidden;
+            transition: opacity 0.2s; /* 부드러운 전환을 위해 추가 */
+        }
+
+        /* 말풍선 사진: 중앙 말풍선 영역 */
+        #layer-photo-1 { 
+            z-index: 1; 
+            top: 0px; 
+            left: 200px; 
+            width: 700px; 
+            height: 440px; 
+        }
+        
+        /* 핸드폰 사진: 핸드폰 화면 영역 */
+        #layer-photo-2 { 
+            z-index: 2; 
+            top: 470px; 
+            left: 531px; 
+            width: 90px; 
+            height: 150px; 
         }
 
         .preview-image {
             position: absolute;
-            top: 150px; left: 300px;
-            width: 400px; height: auto;
+            top: 0; left: 0; 
+            width: 100%; height: auto;
             display: none; cursor: move;
             transform-origin: center;
         }
-
-        #layer-photo-1 { z-index: 1; }
-        #layer-photo-2 { z-index: 2; }
 
         #background-layer {
             position: absolute;
@@ -77,9 +89,10 @@
             background-size: 100% 100%;
             z-index: 3;
             pointer-events: none;
+            transition: opacity 0.2s;
         }
 
-        /* [3] 말풍선 스타일 (좌표 유지) */
+        /* [3] 말풍선 스타일 */
         .bubble {
             position: absolute;
             display: flex;
@@ -98,6 +111,7 @@
             box-sizing: border-box;
             overflow: hidden;
             color: #000;
+            transition: opacity 0.2s; /* 부드러운 전환을 위해 추가 */
         }
 
         #bubble-top-left { top: 1px; left: 1px; width: 215px; height: 330px; }
@@ -118,17 +132,19 @@
 
 <div id="controls">
     <div class="btn-group">
-        <button class="upload-btn" onclick="document.getElementById('img-input-1').click();">사진 1 (뒤)</button>
-        <button class="upload-btn" onclick="document.getElementById('img-input-2').click();">사진 2 (앞)</button>
+        <button class="upload-btn" onclick="document.getElementById('img-input-1').click();">말풍선 사진</button>
+        <button class="upload-btn" onclick="document.getElementById('img-input-2').click();">핸드폰 사진</button>
         <button class="font-btn" onclick="document.getElementById('font-input').click();">다른 폰트로 변경</button>
         <button class="save-btn" id="save-btn">이미지 저장</button>
     </div>
 
     <div class="selector">
         조작 대상: 
-        <label style="cursor:pointer"><input type="radio" name="target" value="1" checked> 사진 1</label>
+        <label style="cursor:pointer"><input type="radio" name="target" value="none" checked> 없음</label>
         &nbsp;
-        <label style="cursor:pointer"><input type="radio" name="target" value="2"> 사진 2</label>
+        <label style="cursor:pointer"><input type="radio" name="target" value="1"> 말풍선 사진</label>
+        &nbsp;
+        <label style="cursor:pointer"><input type="radio" name="target" value="2"> 핸드폰 사진</label>
     </div>
     
     <div class="hint">기본 폰트는 '평택 노을체'입니다. 텍스트는 'Enter'로 줄바꿈이 가능하니 적절히 조절하세요.</div>
@@ -151,7 +167,6 @@
 
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script>
-    /* JavaScript 로직은 원본과 동일하게 유지됩니다 (수정 없음) */
     const maxFontSize = 42;
     const minFontSize = 12;
 
@@ -168,6 +183,7 @@
         document.fonts.ready.then(() => {
             document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
         });
+        updateVisibility(); // 초기 상태 설정
     });
 
     document.querySelectorAll('.bubble').forEach(bubble => {
@@ -216,7 +232,35 @@
         return document.querySelector('input[name="target"]:checked').value;
     }
 
+    /* 조작 대상에 따른 가시성 통합 제어 로직 */
+    function updateVisibility() {
+        const targetId = getTargetId();
+        const bg = document.getElementById('background-layer');
+        const p1 = document.getElementById('layer-photo-1');
+        const p2 = document.getElementById('layer-photo-2');
+        const bubbles = document.querySelectorAll('.bubble');
+
+        if (targetId === '1' || targetId === '2') {
+            // 조작 대상이 말풍선 사진 또는 2일 때
+            bg.style.opacity = '0.3';
+            p1.style.opacity = (targetId === '1' ? '1' : '0');
+            p2.style.opacity = (targetId === '2' ? '1' : '0');
+            bubbles.forEach(b => b.style.opacity = '0');
+        } else {
+            // 조작 대상이 '없음'일 때 (모두 100%)
+            bg.style.opacity = '1';
+            p1.style.opacity = '1';
+            p2.style.opacity = '1';
+            bubbles.forEach(b => b.style.opacity = '1');
+        }
+    }
+
+    document.querySelectorAll('input[name="target"]').forEach(radio => {
+        radio.addEventListener('change', updateVisibility);
+    });
+
     function updateTransform(id) {
+        if (id === 'none') return;
         const s = states[id];
         if (s.el) {
             s.el.style.transform = `translate(${s.x}px, ${s.y}px) scale(${s.scale})`;
@@ -244,7 +288,7 @@
     container.addEventListener('mousedown', (e) => {
         if (e.target.classList.contains('bubble')) return;
         const id = getTargetId();
-        if (!states[id].el.src) return;
+        if (id === 'none' || !states[id].el.src) return;
         isDragging = true;
         startX = e.clientX - states[id].x;
         startY = e.clientY - states[id].y;
@@ -253,7 +297,7 @@
     container.addEventListener('touchstart', (e) => {
         if (e.target.classList.contains('bubble')) return;
         const id = getTargetId();
-        if (!states[id].el.src) return;
+        if (id === 'none' || !states[id].el.src) return;
 
         if (e.touches.length === 1) {
             isDragging = true;
@@ -271,6 +315,7 @@
     window.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
         const id = getTargetId();
+        if (id === 'none') return;
         states[id].x = e.clientX - startX;
         states[id].y = e.clientY - startY;
         updateTransform(id);
@@ -278,7 +323,7 @@
 
     window.addEventListener('touchmove', (e) => {
         const id = getTargetId();
-        if (!states[id].el.src) return;
+        if (id === 'none' || !states[id].el.src) return;
 
         if (e.touches.length === 1 && isDragging) {
             states[id].x = e.touches[0].clientX - startX;
@@ -304,7 +349,7 @@
 
     container.addEventListener('wheel', (e) => {
         const id = getTargetId();
-        if (!states[id].el.src) return;
+        if (id === 'none' || !states[id].el.src) return;
         e.preventDefault();
         const zoomSpeed = 0.05;
         if (e.deltaY < 0) states[id].scale += zoomSpeed;
@@ -313,6 +358,16 @@
     }, { passive: false });
 
     document.getElementById('save-btn').addEventListener('click', function() {
+        const bg = document.getElementById('background-layer');
+        const p1 = document.getElementById('layer-photo-1');
+        const p2 = document.getElementById('layer-photo-2');
+        const bubbles = document.querySelectorAll('.bubble');
+
+        // 저장 시 모든 레이어를 보이게 설정
+        const prevOpacity = { bg: bg.style.opacity, p1: p1.style.opacity, p2: p2.style.opacity };
+        bg.style.opacity = '1'; p1.style.opacity = '1'; p2.style.opacity = '1';
+        bubbles.forEach(b => b.style.opacity = '1');
+
         html2canvas(container, { 
             scale: 2, 
             useCORS: true,
@@ -323,6 +378,8 @@
             link.download = '텐카_결과물.png';
             link.href = canvas.toDataURL('image/png');
             link.click();
+            // 저장 후 원래 가시성으로 복구
+            updateVisibility();
         });
     });
 </script>
