@@ -53,7 +53,7 @@
         .photo-layer {
             position: absolute;
             overflow: hidden;
-            transition: opacity 0.2s; /* 부드러운 전환을 위해 추가 */
+            transition: opacity 0.2s;
         }
 
         /* 말풍선 사진: 중앙 말풍선 영역 */
@@ -111,7 +111,7 @@
             box-sizing: border-box;
             overflow: hidden;
             color: #000;
-            transition: opacity 0.2s; /* 부드러운 전환을 위해 추가 */
+            transition: opacity 0.2s;
         }
 
         #bubble-top-left { top: 1px; left: 1px; width: 215px; height: 330px; }
@@ -124,8 +124,13 @@
         .save-btn { background: #28a745; color: white; border: none; }
         .upload-btn { background: #007bff; color: white; border: none; margin: 5px; }
         .font-btn { background: #6c757d; color: white; border: none; margin: 5px; }
-        .selector { margin: 10px; font-weight: bold; font-size: 16px; padding: 10px; background: #fff; display: inline-block; border-radius: 8px; border: 1px solid #ddd; }
+        .selector { margin: 10px; font-weight: bold; font-size: 16px; padding: 10px; background: #fff; display: inline-block; border-radius: 8px; border: 1px solid #ddd; vertical-align: top; }
         .hint { color: #666; font-size: 13px; margin-top: 5px; }
+        
+        /* 추가 스타일: 폰트 컨트롤 */
+        .font-control-panel { display: block; margin-top: 10px; font-size: 14px; text-align: left; }
+        .slider-item { margin: 5px 0; display: flex; align-items: center; justify-content: space-between; }
+        .slider-item input { width: 120px; margin-left: 10px; }
     </style>
 </head>
 <body>
@@ -140,11 +145,22 @@
 
     <div class="selector">
         조작 대상: 
+        <br>
         <label style="cursor:pointer"><input type="radio" name="target" value="none" checked> 없음</label>
         &nbsp;
         <label style="cursor:pointer"><input type="radio" name="target" value="1"> 말풍선 사진</label>
         &nbsp;
         <label style="cursor:pointer"><input type="radio" name="target" value="2"> 핸드폰 사진</label>
+    </div>
+
+    <div class="selector">
+        폰트 설정: 
+        <label style="cursor:pointer; color: #007bff;"><input type="checkbox" id="auto-font-toggle" checked> 자동 크기 조절</label>
+        <div id="manual-font-controls" class="font-control-panel" style="display: none;">
+            <div class="slider-item">좌상단: <input type="range" class="font-slider" data-target="bubble-top-left" min="10" max="100" value="42"></div>
+            <div class="slider-item">좌하단: <input type="range" class="font-slider" data-target="bubble-bottom-left" min="10" max="100" value="42"></div>
+            <div class="slider-item">우상단: <input type="range" class="font-slider" data-target="bubble-top-right" min="10" max="100" value="42"></div>
+        </div>
     </div>
     
     <div class="hint">기본 폰트는 '평택 노을체'입니다. 텍스트는 'Enter'로 줄바꿈이 가능하니 적절히 조절하세요.</div>
@@ -171,6 +187,9 @@
     const minFontSize = 12;
 
     function adjustFontSize(el) {
+        // 자동 조절 체크박스가 켜져 있을 때만 실행
+        if (!document.getElementById('auto-font-toggle').checked) return;
+
         let fontSize = maxFontSize;
         el.style.fontSize = fontSize + 'px';
         while ((el.scrollHeight > el.offsetHeight || el.scrollWidth > el.offsetWidth) && fontSize > minFontSize) {
@@ -183,7 +202,7 @@
         document.fonts.ready.then(() => {
             document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
         });
-        updateVisibility(); // 초기 상태 설정
+        updateVisibility();
     });
 
     document.querySelectorAll('.bubble').forEach(bubble => {
@@ -193,6 +212,30 @@
             const text = e.clipboardData.getData('text/plain');
             document.execCommand('insertText', false, text);
             adjustFontSize(bubble);
+        });
+    });
+
+    // 자동 조절 토글 이벤트
+    document.getElementById('auto-font-toggle').addEventListener('change', function(e) {
+        const manualControls = document.getElementById('manual-font-controls');
+        if (e.target.checked) {
+            manualControls.style.display = 'none';
+            document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
+        } else {
+            manualControls.style.display = 'block';
+            // 수동 전환 시 현재 슬라이더 값들 적용
+            document.querySelectorAll('.font-slider').forEach(slider => {
+                const targetId = slider.getAttribute('data-target');
+                document.getElementById(targetId).style.fontSize = slider.value + 'px';
+            });
+        }
+    });
+
+    // 개별 폰트 슬라이더 이벤트
+    document.querySelectorAll('.font-slider').forEach(slider => {
+        slider.addEventListener('input', function(e) {
+            const targetId = this.getAttribute('data-target');
+            document.getElementById(targetId).style.fontSize = this.value + 'px';
         });
     });
 
@@ -232,7 +275,6 @@
         return document.querySelector('input[name="target"]:checked').value;
     }
 
-    /* 조작 대상에 따른 가시성 통합 제어 로직 */
     function updateVisibility() {
         const targetId = getTargetId();
         const bg = document.getElementById('background-layer');
@@ -241,13 +283,11 @@
         const bubbles = document.querySelectorAll('.bubble');
 
         if (targetId === '1' || targetId === '2') {
-            // 조작 대상이 말풍선 사진 또는 2일 때
             bg.style.opacity = '0.3';
             p1.style.opacity = (targetId === '1' ? '1' : '0');
             p2.style.opacity = (targetId === '2' ? '1' : '0');
             bubbles.forEach(b => b.style.opacity = '0');
         } else {
-            // 조작 대상이 '없음'일 때 (모두 100%)
             bg.style.opacity = '1';
             p1.style.opacity = '1';
             p2.style.opacity = '1';
@@ -363,7 +403,6 @@
         const p2 = document.getElementById('layer-photo-2');
         const bubbles = document.querySelectorAll('.bubble');
 
-        // 저장 시 모든 레이어를 보이게 설정
         const prevOpacity = { bg: bg.style.opacity, p1: p1.style.opacity, p2: p2.style.opacity };
         bg.style.opacity = '1'; p1.style.opacity = '1'; p2.style.opacity = '1';
         bubbles.forEach(b => b.style.opacity = '1');
@@ -378,7 +417,6 @@
             link.download = '텐카_결과물.png';
             link.href = canvas.toDataURL('image/png');
             link.click();
-            // 저장 후 원래 가시성으로 복구
             updateVisibility();
         });
     });
