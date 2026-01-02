@@ -176,7 +176,7 @@
 
 <aside class="sidebar">
     <div class="control-section">
-        <div class="section-title">🖼️ 이미지 업로드(움짤 저장 불가)</div>
+        <div class="section-title">🖼️ 이미지 업로드(움짤 가능)</div>
         <button class="upload-btn" onclick="document.getElementById('img-input-1').click();">말풍선 사진</button>
         <button class="upload-btn" onclick="document.getElementById('img-input-2').click();">핸드폰 사진</button>
         <button class="upload-btn" onclick="document.getElementById('img-input-3').click();">로고 사진</button>
@@ -269,7 +269,6 @@
 
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script>
-    /* [원본 스크립트 그대로 삽입] */
     const maxFontSize = 42;
     const minFontSize = 12;
 
@@ -283,7 +282,6 @@
         }
     }
 
-    // 작업 내역 관리 시스템 (Undo/Redo)
     let history = [];
     let historyIndex = -1;
 
@@ -335,7 +333,7 @@
     window.addEventListener('load', () => {
         document.fonts.ready.then(() => {
             document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
-            saveState(); // 초기 상태 저장
+            saveState();
         });
         updateVisibility();
     });
@@ -480,7 +478,7 @@
     let isDragging = false;
     let startX, startY;
     let initialDist = 0;
-    let startScale = 1.0; // 핀치 줌 기준점 스케일 변수 추가
+    let startScale = 1.0;
 
     function getTargetId() { return document.querySelector('input[name="target"]:checked').value; }
 
@@ -557,7 +555,7 @@
         } else if (e.touches.length === 2) {
             isDragging = false; 
             initialDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            startScale = states[id].scale; // 시작 시점의 스케일 저장
+            startScale = states[id].scale;
         }
     }, { passive: false });
 
@@ -576,9 +574,19 @@
             updateTransform(id); if (e.cancelable) e.preventDefault();
         } else if (e.touches.length === 2) {
             const currentDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            const zoomFactor = currentDist / initialDist; // 시작 시점과의 거리 비율 계산
-            states[id].scale = Math.max(0.05, Math.min(10, startScale * zoomFactor)); // 시작 스케일에 비율 적용 (안정적인 확대/축소)
-            updateTransform(id); if (e.cancelable) e.preventDefault();
+            
+            // [버그 수정 핵심] initialDist가 0이거나 설정되지 않은 상태에서 이동이 발생하면 현재 거리로 초기화하여 Infinity 발생 방지
+            if (!initialDist || initialDist === 0) {
+                initialDist = currentDist;
+                startScale = states[id].scale;
+            }
+
+            if (initialDist > 0) {
+                const zoomFactor = currentDist / initialDist;
+                states[id].scale = Math.max(0.05, Math.min(10, startScale * zoomFactor));
+                updateTransform(id);
+            }
+            if (e.cancelable) e.preventDefault();
         }
     }, { passive: false });
 
