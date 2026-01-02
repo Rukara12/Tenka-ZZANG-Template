@@ -176,7 +176,7 @@
 
 <aside class="sidebar">
     <div class="control-section">
-        <div class="section-title">🖼️ 이미지 업로드(움짤 가능)</div>
+        <div class="section-title">🖼️ 이미지 업로드(움짤 저장 불가)</div>
         <button class="upload-btn" onclick="document.getElementById('img-input-1').click();">말풍선 사진</button>
         <button class="upload-btn" onclick="document.getElementById('img-input-2').click();">핸드폰 사진</button>
         <button class="upload-btn" onclick="document.getElementById('img-input-3').click();">로고 사진</button>
@@ -211,9 +211,9 @@
 
 <main class="main-content">
     <div id="meme-container">
-        <div id="layer-photo-1" class="photo-layer"><img id="img-1" class="preview-image" crossorigin="anonymous" draggable="false"></div>
-        <div id="layer-photo-2" class="photo-layer"><img id="img-2" class="preview-image" crossorigin="anonymous" draggable="false"></div>
-        <div id="layer-photo-3" class="photo-layer"><img id="img-3" class="preview-image" crossorigin="anonymous" draggable="false"></div>
+        <div id="layer-photo-1" class="photo-layer"><img id="img-1" class="preview-image" draggable="false"></div>
+        <div id="layer-photo-2" class="photo-layer"><img id="img-2" class="preview-image" draggable="false"></div>
+        <div id="layer-photo-3" class="photo-layer"><img id="img-3" class="preview-image" draggable="false"></div>
         <div id="background-layer"></div>
 
         <div id="bubble-top-left" class="bubble" contenteditable="true" spellcheck="false">텐카쨩 반박하는 내용··· 듣기 싫은 말···</div>
@@ -249,9 +249,7 @@
     <div class="control-section">
         <div class="section-title">✨ 효과 설정</div>
         <label style="cursor:pointer; font-size: 14px; display: block; margin-bottom: 8px;"><input type="checkbox" id="logo-shadow-toggle"> 로고 그림자 효과</label>
-        <label style="cursor:pointer; font-size: 14px; display: block; margin-bottom: 8px;"><input type="checkbox" id="logo-border-toggle"> 로고 테두리 설정</label>
-        <label style="cursor:pointer; font-size: 14px; display: block; color: #d63384; font-weight: bold;"><input type="checkbox" id="keep-anim-toggle"> GIF 애니메이션 유지 (움짤 저장)</label>
-        
+        <label style="cursor:pointer; font-size: 14px; display: block;"><input type="checkbox" id="logo-border-toggle"> 로고 테두리 설정</label>
         <div id="logo-border-controls" style="display: none; margin-top: 10px; font-size: 13px;">
             <div class="slider-item">두께: <input type="range" id="logo-border-width" min="0.01" step="0.01" max="5" value="2.5"> <input type="number" id="logo-border-num" class="num-input" value="2.5" step="0.01"></div>
             <div class="slider-item">색상: <input type="color" id="logo-border-color" value="#000000" style="width: 50px; height: 25px; border: 1px solid #ced4da; padding: 0;"></div>
@@ -269,9 +267,9 @@
     </div>
 </aside>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.4.5/gifshot.min.js"></script>
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script>
+    /* [원본 스크립트 그대로 삽입] */
     const maxFontSize = 42;
     const minFontSize = 12;
 
@@ -285,6 +283,7 @@
         }
     }
 
+    // 작업 내역 관리 시스템 (Undo/Redo)
     let history = [];
     let historyIndex = -1;
 
@@ -319,11 +318,7 @@
         data.layers.forEach(l => {
             const s = states[l.id];
             s.x = l.x; s.y = l.y; s.scale = l.scale; s.rotate = l.rotate; s.flip = l.flip;
-            if (l.id !== 'none' && l.src) { 
-                s.el.crossOrigin = "anonymous"; // Undo 시에도 설정
-                s.el.src = l.src; 
-                s.el.style.display = 'block'; 
-            }
+            if (l.id !== 'none' && l.src) { s.el.src = l.src; s.el.style.display = 'block'; }
             updateTransform(l.id);
         });
         data.bubbles.forEach(b => {
@@ -340,7 +335,7 @@
     window.addEventListener('load', () => {
         document.fonts.ready.then(() => {
             document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
-            saveState();
+            saveState(); // 초기 상태 저장
         });
         updateVisibility();
     });
@@ -485,7 +480,7 @@
     let isDragging = false;
     let startX, startY;
     let initialDist = 0;
-    let startScale = 1.0;
+    let startScale = 1.0; // 핀치 줌 기준점 스케일 변수 추가
 
     function getTargetId() { return document.querySelector('input[name="target"]:checked').value; }
 
@@ -517,10 +512,8 @@
             if (file) {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
-                    const el = states[id].el;
-                    el.crossOrigin = "anonymous"; // 업로드 시 속성 강제 설정
-                    el.src = ev.target.result;
-                    el.style.display = 'block';
+                    states[id].el.src = ev.target.result;
+                    states[id].el.style.display = 'block';
                     updateTransform(id);
                     saveState();
                     document.querySelector(`input[name="target"][value="${id}"]`).checked = true;
@@ -564,7 +557,7 @@
         } else if (e.touches.length === 2) {
             isDragging = false; 
             initialDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            startScale = states[id].scale;
+            startScale = states[id].scale; // 시작 시점의 스케일 저장
         }
     }, { passive: false });
 
@@ -583,8 +576,8 @@
             updateTransform(id); if (e.cancelable) e.preventDefault();
         } else if (e.touches.length === 2) {
             const currentDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            const zoomFactor = currentDist / initialDist;
-            states[id].scale = Math.max(0.05, Math.min(10, startScale * zoomFactor));
+            const zoomFactor = currentDist / initialDist; // 시작 시점과의 거리 비율 계산
+            states[id].scale = Math.max(0.05, Math.min(10, startScale * zoomFactor)); // 시작 스케일에 비율 적용 (안정적인 확대/축소)
             updateTransform(id); if (e.cancelable) e.preventDefault();
         }
     }, { passive: false });
@@ -600,100 +593,28 @@
         updateTransform(id); triggerHistorySave();
     }, { passive: false });
 
-    /* [저장 로직 개선: gifshot 정의 체크 추가] */
-    document.getElementById('save-btn').addEventListener('click', async function() {
-        const saveBtn = this;
+    document.getElementById('save-btn').addEventListener('click', function() {
         const bg = document.getElementById('background-layer');
         const layers = [1, 2, 3].map(i => document.getElementById(`layer-photo-${i}`));
         const bubbles = document.querySelectorAll('.bubble');
         const isMobile = document.body.classList.contains('mobile-mode');
-        const isKeepAnim = document.getElementById('keep-anim-toggle').checked;
-        
         const prevScale = states.none.scale;
         const prevX = states.none.x;
         const prevY = states.none.y;
-
-        saveBtn.innerText = "처리 중 (CORS 체크)...";
-        saveBtn.disabled = true;
-
         if(isMobile) {
             states.none.scale = 1.0; states.none.x = 0; states.none.y = 0;
             updateTransform('none');
         }
         bg.style.opacity = '1'; layers.forEach(l => l.style.opacity = '1'); bubbles.forEach(b => b.style.opacity = '1');
-
-        try {
-            if (isKeepAnim) {
-                // [수정] gifshot 로드 여부 확인
-                if (typeof gifshot === 'undefined') {
-                    alert("움짤 생성을 위한 라이브러리(gifshot)가 로드되지 않았습니다. 인터넷 연결을 확인하거나 페이지를 새로고침 해주세요.");
-                    finalize();
-                    return;
-                }
-
-                const frames = [];
-                const frameCount = 12; 
-                
-                for (let i = 0; i < frameCount; i++) {
-                    const canvas = await html2canvas(container, { 
-                        scale: 1.5, 
-                        useCORS: true, 
-                        allowTaint: false,
-                        logging: false 
-                    });
-                    frames.push(canvas.toDataURL('image/webp'));
-                    await new Promise(r => setTimeout(r, 120));
-                }
-
-                gifshot.createGIF({
-                    images: frames,
-                    gifWidth: 1024,
-                    gifHeight: 765,
-                    interval: 0.12,
-                    numFrames: frameCount
-                }, function(obj) {
-                    if (!obj.error) {
-                        const link = document.createElement('a');
-                        link.download = '텐카_움짤_결과물.webp';
-                        link.href = obj.image;
-                        link.click();
-                    } else {
-                        alert("움짤 생성 중 오류가 발생했습니다: " + obj.error);
-                    }
-                    finalize();
-                });
-            } else {
-                html2canvas(container, { 
-                    scale: 2, 
-                    useCORS: true, 
-                    allowTaint: false,
-                    logging: false, 
-                    backgroundColor: null 
-                }).then(canvas => {
-                    const link = document.createElement('a');
-                    link.download = '텐카_결과물.webp'; 
-                    link.href = canvas.toDataURL('image/webp', 0.9);
-                    link.click();
-                    finalize();
-                }).catch(err => {
-                    alert("이미지 캡처 실패 (CORS 문제 가능성): " + err);
-                    finalize();
-                });
-            }
-        } catch (e) {
-            alert("처리 중 예외 발생: " + e.message);
-            finalize();
-        }
-
-        function finalize() {
+        html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: null }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = '텐카_결과물.png'; link.href = canvas.toDataURL('image/png'); link.click();
             if(isMobile) {
                 states.none.scale = prevScale; states.none.x = prevX; states.none.y = prevY;
                 updateTransform('none');
             }
             updateVisibility();
-            saveBtn.innerText = "최종 결과물 저장";
-            saveBtn.disabled = false;
-        }
+        });
     });
 </script>
 
