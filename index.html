@@ -74,6 +74,15 @@
             height: 150px; 
         }
 
+        /* [수정] 로고 사진: 배경보다 앞에 위치(z-index: 5), 우측 하단 배치 */
+        #layer-photo-3 { 
+            z-index: 5; 
+            top: 445px; 
+            left: 685px; 
+            width: 320px; 
+            height: 300px; 
+        }
+
         .preview-image {
             position: absolute;
             top: 0; left: 0; 
@@ -87,7 +96,7 @@
             top: 0; left: 0; width: 100%; height: 100%;
             background-image: url('tenka.png'); 
             background-size: 100% 100%;
-            z-index: 3;
+            z-index: 4;
             pointer-events: none;
             transition: opacity 0.2s;
         }
@@ -103,7 +112,7 @@
             font-family: 'PyeongtaekSunset', sans-serif;
             font-weight: 700;
             line-height: 1.2;
-            z-index: 4;
+            z-index: 6;
             outline: none;
             white-space: pre-wrap;
             word-break: break-word;
@@ -127,7 +136,6 @@
         .selector { margin: 10px; font-weight: bold; font-size: 16px; padding: 10px; background: #fff; display: inline-block; border-radius: 8px; border: 1px solid #ddd; vertical-align: top; }
         .hint { color: #666; font-size: 13px; margin-top: 5px; }
         
-        /* 추가 스타일: 폰트 컨트롤 */
         .font-control-panel { display: block; margin-top: 10px; font-size: 14px; text-align: left; }
         .slider-item { margin: 5px 0; display: flex; align-items: center; justify-content: space-between; }
         .slider-item input { width: 120px; margin-left: 10px; }
@@ -139,6 +147,7 @@
     <div class="btn-group">
         <button class="upload-btn" onclick="document.getElementById('img-input-1').click();">말풍선 사진</button>
         <button class="upload-btn" onclick="document.getElementById('img-input-2').click();">핸드폰 사진</button>
+        <button class="upload-btn" onclick="document.getElementById('img-input-3').click();">로고 사진</button>
         <button class="font-btn" onclick="document.getElementById('font-input').click();">다른 폰트로 변경</button>
         <button class="save-btn" id="save-btn">이미지 저장</button>
     </div>
@@ -151,6 +160,8 @@
         <label style="cursor:pointer"><input type="radio" name="target" value="1"> 말풍선 사진</label>
         &nbsp;
         <label style="cursor:pointer"><input type="radio" name="target" value="2"> 핸드폰 사진</label>
+        &nbsp;
+        <label style="cursor:pointer"><input type="radio" name="target" value="3"> 로고 사진</label>
     </div>
 
     <div class="selector">
@@ -168,12 +179,14 @@
 
     <input type="file" id="img-input-1" accept="image/*" style="display:none">
     <input type="file" id="img-input-2" accept="image/*" style="display:none">
+    <input type="file" id="img-input-3" accept="image/*" style="display:none">
     <input type="file" id="font-input" accept=".ttf, .otf, .woff, .woff2" style="display:none">
 </div>
 
 <div id="meme-container">
     <div id="layer-photo-1" class="photo-layer"><img id="img-1" class="preview-image" draggable="false"></div>
     <div id="layer-photo-2" class="photo-layer"><img id="img-2" class="preview-image" draggable="false"></div>
+    <div id="layer-photo-3" class="photo-layer"><img id="img-3" class="preview-image" draggable="false"></div>
     <div id="background-layer"></div>
 
     <div id="bubble-top-left" class="bubble" contenteditable="true" spellcheck="false">텐카쨩 반박하는 내용··· 듣기 싫은 말···</div>
@@ -187,9 +200,7 @@
     const minFontSize = 12;
 
     function adjustFontSize(el) {
-        // 자동 조절 체크박스가 켜져 있을 때만 실행
         if (!document.getElementById('auto-font-toggle').checked) return;
-
         let fontSize = maxFontSize;
         el.style.fontSize = fontSize + 'px';
         while ((el.scrollHeight > el.offsetHeight || el.scrollWidth > el.offsetWidth) && fontSize > minFontSize) {
@@ -215,7 +226,6 @@
         });
     });
 
-    // 자동 조절 토글 이벤트
     document.getElementById('auto-font-toggle').addEventListener('change', function(e) {
         const manualControls = document.getElementById('manual-font-controls');
         if (e.target.checked) {
@@ -223,7 +233,6 @@
             document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
         } else {
             manualControls.style.display = 'block';
-            // 수동 전환 시 현재 슬라이더 값들 적용
             document.querySelectorAll('.font-slider').forEach(slider => {
                 const targetId = slider.getAttribute('data-target');
                 document.getElementById(targetId).style.fontSize = slider.value + 'px';
@@ -231,7 +240,6 @@
         }
     });
 
-    // 개별 폰트 슬라이더 이벤트
     document.querySelectorAll('.font-slider').forEach(slider => {
         slider.addEventListener('input', function(e) {
             const targetId = this.getAttribute('data-target');
@@ -264,7 +272,8 @@
 
     const states = {
         1: { x: 0, y: 0, scale: 1.0, el: document.getElementById('img-1') },
-        2: { x: 0, y: 0, scale: 1.0, el: document.getElementById('img-2') }
+        2: { x: 0, y: 0, scale: 1.0, el: document.getElementById('img-2') },
+        3: { x: 0, y: 0, scale: 1.0, el: document.getElementById('img-3') }
     };
 
     let isDragging = false;
@@ -280,17 +289,20 @@
         const bg = document.getElementById('background-layer');
         const p1 = document.getElementById('layer-photo-1');
         const p2 = document.getElementById('layer-photo-2');
+        const p3 = document.getElementById('layer-photo-3');
         const bubbles = document.querySelectorAll('.bubble');
 
-        if (targetId === '1' || targetId === '2') {
+        if (targetId === '1' || targetId === '2' || targetId === '3') {
             bg.style.opacity = '0.3';
             p1.style.opacity = (targetId === '1' ? '1' : '0');
             p2.style.opacity = (targetId === '2' ? '1' : '0');
+            p3.style.opacity = (targetId === '3' ? '1' : '0');
             bubbles.forEach(b => b.style.opacity = '0');
         } else {
             bg.style.opacity = '1';
             p1.style.opacity = '1';
             p2.style.opacity = '1';
+            p3.style.opacity = '1';
             bubbles.forEach(b => b.style.opacity = '1');
         }
     }
@@ -321,7 +333,7 @@
             }
         });
     }
-    setupUpload(1); setupUpload(2);
+    setupUpload(1); setupUpload(2); setupUpload(3);
 
     const container = document.getElementById('meme-container');
 
@@ -338,17 +350,13 @@
         if (e.target.classList.contains('bubble')) return;
         const id = getTargetId();
         if (id === 'none' || !states[id].el.src) return;
-
         if (e.touches.length === 1) {
             isDragging = true;
             startX = e.touches[0].clientX - states[id].x;
             startY = e.touches[0].clientY - states[id].y;
         } else if (e.touches.length === 2) {
             isDragging = false; 
-            initialDist = Math.hypot(
-                e.touches[0].clientX - e.touches[1].clientX,
-                e.touches[0].clientY - e.touches[1].clientY
-            );
+            initialDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
         }
     }, { passive: false });
 
@@ -364,17 +372,13 @@
     window.addEventListener('touchmove', (e) => {
         const id = getTargetId();
         if (id === 'none' || !states[id].el.src) return;
-
         if (e.touches.length === 1 && isDragging) {
             states[id].x = e.touches[0].clientX - startX;
             states[id].y = e.touches[0].clientY - startY;
             updateTransform(id);
             if (e.cancelable) e.preventDefault();
         } else if (e.touches.length === 2) {
-            const currentDist = Math.hypot(
-                e.touches[0].clientX - e.touches[1].clientX,
-                e.touches[0].clientY - e.touches[1].clientY
-            );
+            const currentDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
             const zoomFactor = currentDist / initialDist;
             states[id].scale *= zoomFactor;
             states[id].scale = Math.max(0.05, Math.min(10, states[id].scale));
@@ -401,18 +405,11 @@
         const bg = document.getElementById('background-layer');
         const p1 = document.getElementById('layer-photo-1');
         const p2 = document.getElementById('layer-photo-2');
+        const p3 = document.getElementById('layer-photo-3');
         const bubbles = document.querySelectorAll('.bubble');
-
-        const prevOpacity = { bg: bg.style.opacity, p1: p1.style.opacity, p2: p2.style.opacity };
-        bg.style.opacity = '1'; p1.style.opacity = '1'; p2.style.opacity = '1';
+        bg.style.opacity = '1'; p1.style.opacity = '1'; p2.style.opacity = '1'; p3.style.opacity = '1';
         bubbles.forEach(b => b.style.opacity = '1');
-
-        html2canvas(container, { 
-            scale: 2, 
-            useCORS: true,
-            logging: false,
-            backgroundColor: null
-        }).then(canvas => {
+        html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: null }).then(canvas => {
             const link = document.createElement('a');
             link.download = '텐카_결과물.png';
             link.href = canvas.toDataURL('image/png');
