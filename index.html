@@ -2,8 +2,31 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>텐카 템플릿</title>
     <style>
+        /* [1] 웹폰트 정의 */
+        @font-face {
+            font-family: 'PyeongtaekSunset';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408@1.0/PTNoeulL.woff2') format('woff2');
+            font-weight: 300;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'PyeongtaekSunset';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408@1.0/PTNoeulB.woff2') format('woff2');
+            font-weight: 700;
+            font-display: swap;
+        }
+
+        /* [2] 기본 스타일 */
+        body { 
+            margin: 0; padding: 0; 
+            touch-action: manipulation; 
+            font-family: 'PyeongtaekSunset', sans-serif; 
+        }
+
         #meme-container {
             position: relative;
             width: 1024px;
@@ -13,6 +36,7 @@
             overflow: hidden;
             background-color: #f0f0f0;
             user-select: none;
+            touch-action: none;
         }
 
         .photo-layer {
@@ -41,6 +65,7 @@
             pointer-events: none;
         }
 
+        /* [3] 말풍선 스타일 (평택 노을체 적용) */
         .bubble {
             position: absolute;
             display: flex;
@@ -48,8 +73,8 @@
             justify-content: center;
             align-items: center;
             text-align: center;
-            font-family: '맑은 고딕', sans-serif; /* 기본 폰트 */
-            font-weight: bold;
+            font-family: 'PyeongtaekSunset', sans-serif;
+            font-weight: 700; /* 기본적으로 Bold 적용 */
             line-height: 1.2;
             z-index: 4;
             outline: none;
@@ -58,9 +83,10 @@
             padding: 15px;
             box-sizing: border-box;
             overflow: hidden;
+            color: #000;
         }
 
-        #bubble-top-left { top: 1px; left: 1px; width: 205px; height: 330px; }
+        #bubble-top-left { top: 1px; left: 1px; width: 215px; height: 330px; }
         #bubble-bottom-left { top: 420px; left: 1px; width: 230px; height: 350px; }
         #bubble-top-right { top: 1px; left: 810px; width: 215px; height: 410px; }
 
@@ -69,7 +95,7 @@
         button { padding: 10px 20px; font-size: 15px; cursor: pointer; border-radius: 4px; border: 1px solid #999; font-weight: bold; }
         .save-btn { background: #28a745; color: white; border: none; }
         .upload-btn { background: #007bff; color: white; border: none; margin: 0 5px; }
-        .font-btn { background: #6c757d; color: white; border: none; margin: 0 5px; } /* 폰트 버튼 스타일 추가 */
+        .font-btn { background: #6c757d; color: white; border: none; margin: 0 5px; }
         .selector { margin: 10px; font-weight: bold; font-size: 16px; padding: 10px; background: #fff; display: inline-block; border-radius: 8px; border: 1px solid #ddd; }
         .hint { color: #666; font-size: 13px; margin-top: 5px; }
     </style>
@@ -78,24 +104,25 @@
 
 <div id="controls">
     <div class="btn-group">
-        <button class="upload-btn" onclick="document.getElementById('img-input-1').click();">사진 1 업로드(뒤)</button>
-        <button class="upload-btn" onclick="document.getElementById('img-input-2').click();">사진 2 업로드(앞)</button>
-        <button class="font-btn" onclick="document.getElementById('font-input').click();">폰트 업로드 (.ttf, .otf)</button>
-        <button class="save-btn" id="save-btn">이미지 저장하기</button>
+        <button class="upload-btn" onclick="document.getElementById('img-input-1').click();">사진 1 (뒤)</button>
+        <button class="upload-btn" onclick="document.getElementById('img-input-2').click();">사진 2 (앞)</button>
+        <button class="font-btn" onclick="document.getElementById('font-input').click();">다른 폰트로 변경</button>
+        <button class="save-btn" id="save-btn">이미지 저장</button>
     </div>
 
     <div class="selector">
         조작 대상: 
-        <label style="cursor:pointer"><input type="radio" name="target" value="1" checked> 사진 1 (뒤)</label>
+        <label style="cursor:pointer"><input type="radio" name="target" value="1" checked> 사진 1</label>
         &nbsp;
-        <label style="cursor:pointer"><input type="radio" name="target" value="2"> 사진 2 (앞)</label>
+        <label style="cursor:pointer"><input type="radio" name="target" value="2"> 사진 2</label>
     </div>
     
-    <div class="hint">대상 선택 후 드래그로 이동, 휠로 크기를 조절하세요. 글자가 길어지면 자동으로 크기가 줄어듭니다.</div>
+    <div class="hint">기본 폰트는 '평택 노을체'입니다. 텍스트는 'Enter'로 줄바꿈이 가능하니 적절히 조절하세요.</div>
+    <div class="hint">사진은 조작 대상 선택 후 드래그/휠/핀치 줌으로 조작하세요.</div>
 
     <input type="file" id="img-input-1" accept="image/*" style="display:none">
     <input type="file" id="img-input-2" accept="image/*" style="display:none">
-    <input type="file" id="font-input" accept=".ttf, .otf" style="display:none">
+    <input type="file" id="font-input" accept=".ttf, .otf, .woff, .woff2" style="display:none">
 </div>
 
 <div id="meme-container">
@@ -103,15 +130,15 @@
     <div id="layer-photo-2" class="photo-layer"><img id="img-2" class="preview-image" draggable="false"></div>
     <div id="background-layer"></div>
 
-    <div id="bubble-top-left" class="bubble" contenteditable="true" spellcheck="false">텍스트 입력</div>
-    <div id="bubble-bottom-left" class="bubble" contenteditable="true" spellcheck="false">텍스트 입력</div>
-    <div id="bubble-top-right" class="bubble" contenteditable="true" spellcheck="false">텍스트 입력</div>
+    <div id="bubble-top-left" class="bubble" contenteditable="true" spellcheck="false">텐카쨩 반박하는 내용··· 듣기 싫은 말···</div>
+    <div id="bubble-bottom-left" class="bubble" contenteditable="true" spellcheck="false">나쨩 미안··· 잘 안 들려··· 아무튼 어쩌구 저쩌구 한데다 이러저러하고 이래저래 장점이 많아서 재밌는 게임이라는 장황한 설명···</div>
+    <div id="bubble-top-right" class="bubble" contenteditable="true" spellcheck="false">나쨩 이거 봐봐···! 대충 어쩌구 저쩌구 갓겜···!</div>
 </div>
 
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script>
-    // --- [1] 글자 크기 자동 조절 로직 ---
-    const maxFontSize = 32;
+    // --- [1] 글자 크기 및 폰트 로직 ---
+    const maxFontSize = 42;
     const minFontSize = 12;
 
     function adjustFontSize(el) {
@@ -123,8 +150,14 @@
         }
     }
 
+    // 초기 로드 시 폰트 로딩 대기 후 폰트 크기 조정
+    window.addEventListener('load', () => {
+        document.fonts.ready.then(() => {
+            document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
+        });
+    });
+
     document.querySelectorAll('.bubble').forEach(bubble => {
-        adjustFontSize(bubble);
         bubble.addEventListener('input', () => adjustFontSize(bubble));
         bubble.addEventListener('paste', (e) => {
             e.preventDefault();
@@ -134,29 +167,24 @@
         });
     });
 
-    // --- [폰트 로드 로직 추가] ---
+    // 커스텀 폰트 업로드 기능 유지
     document.getElementById('font-input').addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
             reader.onload = async (ev) => {
                 const fontName = 'UploadedCustomFont';
-                // FontFace API를 사용하여 업로드된 파일을 폰트로 등록
                 const fontFace = new FontFace(fontName, ev.target.result);
-                
                 try {
                     const loadedFace = await fontFace.load();
                     document.fonts.add(loadedFace);
-                    
-                    // 모든 말풍선에 새 폰트 적용
                     document.querySelectorAll('.bubble').forEach(bubble => {
                         bubble.style.fontFamily = fontName;
-                        adjustFontSize(bubble); // 폰트 변경에 따른 크기 재조정
+                        adjustFontSize(bubble);
                     });
-                    alert('폰트가 성공적으로 적용되었습니다.');
+                    alert('새로운 폰트가 적용되었습니다.');
                 } catch (err) {
-                    console.error(err);
-                    alert('폰트 파일을 로드하는 데 실패했습니다.');
+                    alert('폰트 로드 실패');
                 }
             };
             reader.readAsArrayBuffer(file);
@@ -169,7 +197,9 @@
         2: { x: 0, y: 0, scale: 1.0, el: document.getElementById('img-2') }
     };
 
-    let isDragging = false, startX, startY;
+    let isDragging = false;
+    let startX, startY;
+    let initialDist = 0;
 
     function getTargetId() {
         return document.querySelector('input[name="target"]:checked').value;
@@ -204,11 +234,28 @@
         if (e.target.classList.contains('bubble')) return;
         const id = getTargetId();
         if (!states[id].el.src) return;
-
         isDragging = true;
         startX = e.clientX - states[id].x;
         startY = e.clientY - states[id].y;
     });
+
+    container.addEventListener('touchstart', (e) => {
+        if (e.target.classList.contains('bubble')) return;
+        const id = getTargetId();
+        if (!states[id].el.src) return;
+
+        if (e.touches.length === 1) {
+            isDragging = true;
+            startX = e.touches[0].clientX - states[id].x;
+            startY = e.touches[0].clientY - states[id].y;
+        } else if (e.touches.length === 2) {
+            isDragging = false; 
+            initialDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+        }
+    }, { passive: false });
 
     window.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
@@ -218,25 +265,54 @@
         updateTransform(id);
     });
 
+    window.addEventListener('touchmove', (e) => {
+        const id = getTargetId();
+        if (!states[id].el.src) return;
+
+        if (e.touches.length === 1 && isDragging) {
+            states[id].x = e.touches[0].clientX - startX;
+            states[id].y = e.touches[0].clientY - startY;
+            updateTransform(id);
+            if (e.cancelable) e.preventDefault();
+        } else if (e.touches.length === 2) {
+            const currentDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            const zoomFactor = currentDist / initialDist;
+            states[id].scale *= zoomFactor;
+            states[id].scale = Math.max(0.05, Math.min(10, states[id].scale));
+            initialDist = currentDist;
+            updateTransform(id);
+            if (e.cancelable) e.preventDefault();
+        }
+    }, { passive: false });
+
     window.addEventListener('mouseup', () => isDragging = false);
+    window.addEventListener('touchend', () => { isDragging = false; initialDist = 0; });
 
     container.addEventListener('wheel', (e) => {
         const id = getTargetId();
         if (!states[id].el.src) return;
         e.preventDefault();
-
         const zoomSpeed = 0.05;
         if (e.deltaY < 0) states[id].scale += zoomSpeed;
-        else states[id].scale = Math.max(0.1, states[id].scale - zoomSpeed);
+        else states[id].scale = Math.max(0.05, states[id].scale - zoomSpeed);
         updateTransform(id);
     }, { passive: false });
 
     // --- [3] 저장 로직 ---
     document.getElementById('save-btn').addEventListener('click', function() {
-        html2canvas(container, { scale: 2, useCORS: true }).then(canvas => {
+        // 폰트가 제대로 렌더링되도록 잠시 대기 후 캔버스 생성
+        html2canvas(container, { 
+            scale: 2, 
+            useCORS: true,
+            logging: false,
+            backgroundColor: null
+        }).then(canvas => {
             const link = document.createElement('a');
-            link.download = '텐카 바이럴.png';
-            link.href = canvas.toDataURL();
+            link.download = '텐카_결과물.png';
+            link.href = canvas.toDataURL('image/png');
             link.click();
         });
     });
