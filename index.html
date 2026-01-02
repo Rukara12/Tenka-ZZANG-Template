@@ -25,6 +25,9 @@
             margin: 0; padding: 0; 
             touch-action: manipulation; 
             font-family: 'PyeongtaekSunset', sans-serif; 
+            /* 가로 스크롤 방지 추가 */
+            overflow-x: hidden;
+            width: 100%;
         }
 
         #meme-container {
@@ -37,6 +40,17 @@
             background-color: #f0f0f0;
             user-select: none;
             touch-action: none;
+            /* 축소 시 기준점을 상단 중앙으로 설정 */
+            transform-origin: top center;
+        }
+
+        /* 모바일 대응: 화면 너비가 1024px보다 작을 때 자동 축소 */
+        @media screen and (max-width: 1024px) {
+            #meme-container {
+                /* 화면 너비에 맞춰 scale 계산 (여백 고려 약 95% 수준) */
+                transform: scale(calc(100vw / 1060));
+                margin-bottom: calc(765px * (calc(100vw / 1060) - 1) + 20px);
+            }
         }
 
         .photo-layer {
@@ -65,7 +79,7 @@
             pointer-events: none;
         }
 
-        /* [3] 말풍선 스타일 (평택 노을체 적용) */
+        /* [3] 말풍선 스타일 (좌표 유지) */
         .bubble {
             position: absolute;
             display: flex;
@@ -74,7 +88,7 @@
             align-items: center;
             text-align: center;
             font-family: 'PyeongtaekSunset', sans-serif;
-            font-weight: 700; /* 기본적으로 Bold 적용 */
+            font-weight: 700;
             line-height: 1.2;
             z-index: 4;
             outline: none;
@@ -94,8 +108,8 @@
         .btn-group { margin-bottom: 10px; }
         button { padding: 10px 20px; font-size: 15px; cursor: pointer; border-radius: 4px; border: 1px solid #999; font-weight: bold; }
         .save-btn { background: #28a745; color: white; border: none; }
-        .upload-btn { background: #007bff; color: white; border: none; margin: 0 5px; }
-        .font-btn { background: #6c757d; color: white; border: none; margin: 0 5px; }
+        .upload-btn { background: #007bff; color: white; border: none; margin: 5px; }
+        .font-btn { background: #6c757d; color: white; border: none; margin: 5px; }
         .selector { margin: 10px; font-weight: bold; font-size: 16px; padding: 10px; background: #fff; display: inline-block; border-radius: 8px; border: 1px solid #ddd; }
         .hint { color: #666; font-size: 13px; margin-top: 5px; }
     </style>
@@ -137,7 +151,7 @@
 
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script>
-    // --- [1] 글자 크기 및 폰트 로직 ---
+    /* JavaScript 로직은 원본과 동일하게 유지됩니다 (수정 없음) */
     const maxFontSize = 42;
     const minFontSize = 12;
 
@@ -150,7 +164,6 @@
         }
     }
 
-    // 초기 로드 시 폰트 로딩 대기 후 폰트 크기 조정
     window.addEventListener('load', () => {
         document.fonts.ready.then(() => {
             document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
@@ -167,7 +180,6 @@
         });
     });
 
-    // 커스텀 폰트 업로드 기능 유지
     document.getElementById('font-input').addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file) {
@@ -191,7 +203,6 @@
         }
     });
 
-    // --- [2] 사진 조작 로직 ---
     const states = {
         1: { x: 0, y: 0, scale: 1.0, el: document.getElementById('img-1') },
         2: { x: 0, y: 0, scale: 1.0, el: document.getElementById('img-2') }
@@ -301,9 +312,7 @@
         updateTransform(id);
     }, { passive: false });
 
-    // --- [3] 저장 로직 ---
     document.getElementById('save-btn').addEventListener('click', function() {
-        // 폰트가 제대로 렌더링되도록 잠시 대기 후 캔버스 생성
         html2canvas(container, { 
             scale: 2, 
             useCORS: true,
