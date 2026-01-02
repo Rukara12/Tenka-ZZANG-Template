@@ -27,7 +27,7 @@
             display: flex;
             height: 100vh;
             overflow: hidden;
-            transition: all 0.3s ease;
+            transition: all 0.3s integration;
         }
 
         /* 모바일 모드 스타일 */
@@ -211,9 +211,9 @@
 
 <main class="main-content">
     <div id="meme-container">
-        <div id="layer-photo-1" class="photo-layer"><img id="img-1" class="preview-image" draggable="false" crossorigin="anonymous"></div>
-        <div id="layer-photo-2" class="photo-layer"><img id="img-2" class="preview-image" draggable="false" crossorigin="anonymous"></div>
-        <div id="layer-photo-3" class="photo-layer"><img id="img-3" class="preview-image" draggable="false" crossorigin="anonymous"></div>
+        <div id="layer-photo-1" class="photo-layer"><img id="img-1" class="preview-image" draggable="false"></div>
+        <div id="layer-photo-2" class="photo-layer"><img id="img-2" class="preview-image" draggable="false"></div>
+        <div id="layer-photo-3" class="photo-layer"><img id="img-3" class="preview-image" draggable="false"></div>
         <div id="background-layer"></div>
 
         <div id="bubble-top-left" class="bubble" contenteditable="true" spellcheck="false">텐카쨩 반박하는 내용··· 듣기 싫은 말···</div>
@@ -249,7 +249,9 @@
     <div class="control-section">
         <div class="section-title">✨ 효과 설정</div>
         <label style="cursor:pointer; font-size: 14px; display: block; margin-bottom: 8px;"><input type="checkbox" id="logo-shadow-toggle"> 로고 그림자 효과</label>
-        <label style="cursor:pointer; font-size: 14px; display: block;"><input type="checkbox" id="logo-border-toggle"> 로고 테두리 설정</label>
+        <label style="cursor:pointer; font-size: 14px; display: block; margin-bottom: 8px;"><input type="checkbox" id="logo-border-toggle"> 로고 테두리 설정</label>
+        <label style="cursor:pointer; font-size: 14px; display: block; color: #d63384; font-weight: bold;"><input type="checkbox" id="keep-anim-toggle"> GIF 애니메이션 유지 (움짤 저장)</label>
+        
         <div id="logo-border-controls" style="display: none; margin-top: 10px; font-size: 13px;">
             <div class="slider-item">두께: <input type="range" id="logo-border-width" min="0.01" step="0.01" max="5" value="2.5"> <input type="number" id="logo-border-num" class="num-input" value="2.5" step="0.01"></div>
             <div class="slider-item">색상: <input type="color" id="logo-border-color" value="#000000" style="width: 50px; height: 25px; border: 1px solid #ced4da; padding: 0;"></div>
@@ -262,28 +264,15 @@
             <button class="history-btn" onclick="undo()">되돌리기</button>
             <button class="history-btn" onclick="redo()">다시하기</button>
         </div>
-        <div id="gif-progress-container" style="display: none; margin-bottom: 5px; padding: 10px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px;">
-            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 5px;">
-                <span id="gif-progress-label" style="color: #495057;">준비 중...</span>
-                <span id="gif-progress-percent" style="color: #007bff;">0%</span>
-            </div>
-            <div style="width: 100%; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
-                <div id="gif-progress-bar" style="width: 0%; height: 100%; background: #007bff; transition: width 0.2s;"></div>
-            </div>
-        </div>
-        <div style="margin-bottom: 5px; padding: 8px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 6px;">
-            <label style="cursor:pointer; font-size: 13px; font-weight: bold; color: #856404; align-items: center; display: flex;">
-                <input type="checkbox" id="gif-save-mode" style="margin-right: 8px;"> GIF 애니메이션 유지 (움짤 저장)
-            </label>
-        </div>
         <button class="save-btn" id="save-btn">최종 결과물 저장</button>
         <div class="hint" style="text-align: center;">텍스트는 클릭하여 직접 수정 가능</div>
     </div>
 </aside>
 
+<script src="https://cdn.jsdelivr.net/npm/gifshot@0.4.5/build/gifshot.min.js"></script>
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
 <script>
+    /* [원본 스크립트 그대로 삽입] */
     const maxFontSize = 42;
     const minFontSize = 12;
 
@@ -297,6 +286,7 @@
         }
     }
 
+    // 작업 내역 관리 시스템 (Undo/Redo)
     let history = [];
     let historyIndex = -1;
 
@@ -331,11 +321,7 @@
         data.layers.forEach(l => {
             const s = states[l.id];
             s.x = l.x; s.y = l.y; s.scale = l.scale; s.rotate = l.rotate; s.flip = l.flip;
-            if (l.id !== 'none' && l.src) { 
-                s.el.crossOrigin = "anonymous";
-                s.el.src = l.src; 
-                s.el.style.display = 'block'; 
-            }
+            if (l.id !== 'none' && l.src) { s.el.src = l.src; s.el.style.display = 'block'; }
             updateTransform(l.id);
         });
         data.bubbles.forEach(b => {
@@ -352,7 +338,7 @@
     window.addEventListener('load', () => {
         document.fonts.ready.then(() => {
             document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
-            saveState();
+            saveState(); // 초기 상태 저장
         });
         updateVisibility();
     });
@@ -529,7 +515,6 @@
             if (file) {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
-                    states[id].el.crossOrigin = "anonymous"; // 업로드 시에도 설정
                     states[id].el.src = ev.target.result;
                     states[id].el.style.display = 'block';
                     updateTransform(id);
@@ -611,27 +596,21 @@
         updateTransform(id); triggerHistorySave();
     }, { passive: false });
 
+    /* [저장 로직 수정: WebP 대응 및 애니메이션 옵션] */
     document.getElementById('save-btn').addEventListener('click', async function() {
-        const isGifMode = document.getElementById('gif-save-mode').checked;
+        const saveBtn = this;
         const bg = document.getElementById('background-layer');
         const layers = [1, 2, 3].map(i => document.getElementById(`layer-photo-${i}`));
         const bubbles = document.querySelectorAll('.bubble');
         const isMobile = document.body.classList.contains('mobile-mode');
+        const isKeepAnim = document.getElementById('keep-anim-toggle').checked;
+        
         const prevScale = states.none.scale;
         const prevX = states.none.x;
         const prevY = states.none.y;
 
-        const progressContainer = document.getElementById('gif-progress-container');
-        const progressBar = document.getElementById('gif-progress-bar');
-        const progressPercent = document.getElementById('gif-progress-percent');
-        const progressLabel = document.getElementById('gif-progress-label');
-
-        function updateUI(val, label) {
-            const percent = Math.round(val);
-            progressBar.style.width = percent + '%';
-            progressPercent.innerText = percent + '%';
-            if(label) progressLabel.innerText = label;
-        }
+        saveBtn.innerText = "처리 중...";
+        saveBtn.disabled = true;
 
         if(isMobile) {
             states.none.scale = 1.0; states.none.x = 0; states.none.y = 0;
@@ -639,88 +618,51 @@
         }
         bg.style.opacity = '1'; layers.forEach(l => l.style.opacity = '1'); bubbles.forEach(b => b.style.opacity = '1');
 
-        if (isGifMode) {
-            const btn = this;
-            btn.disabled = true;
-            btn.innerText = "움짤 생성 중...";
-            progressContainer.style.display = 'block';
-            updateUI(0, "워커 준비 중...");
+        if (isKeepAnim) {
+            // [애니메이션 모드] 움짤 프레임 캡처
+            const frames = [];
+            const frameCount = 15; // 캡처할 프레임 수
+            
+            for (let i = 0; i < frameCount; i++) {
+                const canvas = await html2canvas(container, { scale: 1.5, useCORS: true, logging: false });
+                frames.push(canvas.toDataURL('image/webp'));
+                await new Promise(r => setTimeout(r, 100)); // 프레임 간격
+            }
 
-            try {
-                const resp = await fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js');
-                const blob = await resp.blob();
-                const workerUrl = URL.createObjectURL(blob);
-
-                const gif = new GIF({
-                    workers: 4,
-                    quality: 10,
-                    workerScript: workerUrl,
-                    width: 1024,
-                    height: 765
-                });
-
-                let framesCaptured = 0;
-                const totalFrames = 15;
-
-                const captureFrames = async () => {
-                    for (let i = 0; i < totalFrames; i++) {
-                        // html2canvas 옵션에 allowTaint: false 추가
-                        const canvas = await html2canvas(container, { scale: 1.2, useCORS: true, allowTaint: false, logging: false });
-                        gif.addFrame(canvas, {delay: 100, copy: true});
-                        framesCaptured++;
-                        updateUI((framesCaptured / totalFrames) * 50, `프레임 캡처 (${framesCaptured}/${totalFrames})`);
-                    }
-
-                    updateUI(50, "렌더링 시작...");
-                    
-                    gif.on('progress', (p) => {
-                        updateUI(50 + (p * 50), "움짤 렌더링 중...");
-                    });
-
-                    gif.on('finished', (blob) => {
-                        const link = document.createElement('a');
-                        link.href = URL.createObjectURL(blob);
-                        link.download = '텐카_결과물.gif';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        
-                        URL.revokeObjectURL(workerUrl);
-                        finalize();
-                    });
-
-                    gif.render();
-                };
-
-                await captureFrames();
-
-            } catch (err) {
-                alert("GIF 생성 중 오류 발생: " + err.message);
+            gifshot.createGIF({
+                images: frames,
+                gifWidth: 1024,
+                gifHeight: 765,
+                interval: 0.1,
+                numFrames: frameCount
+            }, function(obj) {
+                if (!obj.error) {
+                    const link = document.createElement('a');
+                    link.download = '텐카_움짤_결과물.webp';
+                    link.href = obj.image;
+                    link.click();
+                }
                 finalize();
-            }
-
-            function finalize() {
-                if(isMobile) {
-                    states.none.scale = prevScale; states.none.x = prevX; states.none.y = prevY;
-                    updateTransform('none');
-                }
-                updateVisibility();
-                btn.disabled = false;
-                btn.innerText = "최종 결과물 저장";
-                progressContainer.style.display = 'none';
-                updateUI(0, "준비 중...");
-            }
-        } else {
-            // PNG 저장 시에도 allowTaint: false 적용
-            html2canvas(container, { scale: 2, useCORS: true, allowTaint: false, logging: false, backgroundColor: null }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = '텐카_결과물.png'; link.href = canvas.toDataURL('image/png'); link.click();
-                if(isMobile) {
-                    states.none.scale = prevScale; states.none.x = prevX; states.none.y = prevY;
-                    updateTransform('none');
-                }
-                updateVisibility();
             });
+        } else {
+            // [정적 모드] WebP 저장
+            html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: null }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = '텐카_결과물.webp'; 
+                link.href = canvas.toDataURL('image/webp', 0.9); // WebP 형식 및 품질 설정
+                link.click();
+                finalize();
+            });
+        }
+
+        function finalize() {
+            if(isMobile) {
+                states.none.scale = prevScale; states.none.x = prevX; states.none.y = prevY;
+                updateTransform('none');
+            }
+            updateVisibility();
+            saveBtn.innerText = "최종 결과물 저장";
+            saveBtn.disabled = false;
         }
     });
 </script>
