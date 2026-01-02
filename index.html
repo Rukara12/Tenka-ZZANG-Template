@@ -262,6 +262,15 @@
             <button class="history-btn" onclick="undo()">되돌리기</button>
             <button class="history-btn" onclick="redo()">다시하기</button>
         </div>
+        <div id="gif-progress-container" style="display: none; margin-bottom: 5px; padding: 10px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 5px;">
+                <span id="gif-progress-label" style="color: #495057;">준비 중...</span>
+                <span id="gif-progress-percent" style="color: #007bff;">0%</span>
+            </div>
+            <div style="width: 100%; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
+                <div id="gif-progress-bar" style="width: 0%; height: 100%; background: #007bff; transition: width 0.2s;"></div>
+            </div>
+        </div>
         <div style="margin-bottom: 5px; padding: 8px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 6px;">
             <label style="cursor:pointer; font-size: 13px; font-weight: bold; color: #856404; display: flex; align-items: center;">
                 <input type="checkbox" id="gif-save-mode" style="margin-right: 8px;"> GIF 애니메이션 유지 (움짤 저장)
@@ -599,7 +608,7 @@
         updateTransform(id); triggerHistorySave();
     }, { passive: false });
 
-    /* [저장 로직 수정: 체크박스 상태에 따른 분기 처리] */
+    /* [저장 로직 수정: 진행바 UI 및 다운로드 버그 해결] */
     document.getElementById('save-btn').addEventListener('click', function() {
         const isGifMode = document.getElementById('gif-save-mode').checked;
         const bg = document.getElementById('background-layer');
@@ -610,6 +619,12 @@
         const prevX = states.none.x;
         const prevY = states.none.y;
 
+        // UI 요소 참조
+        const progressContainer = document.getElementById('gif-progress-container');
+        const progressBar = document.getElementById('gif-progress-bar');
+        const progressPercent = document.getElementById('gif-progress-percent');
+        const progressLabel = document.getElementById('gif-progress-label');
+
         // 캡처 준비 (UI 정리)
         if(isMobile) {
             states.none.scale = 1.0; states.none.x = 0; states.none.y = 0;
@@ -618,10 +633,10 @@
         bg.style.opacity = '1'; layers.forEach(l => l.style.opacity = '1'); bubbles.forEach(b => b.style.opacity = '1');
 
         if (isGifMode) {
-            // GIF 캡처 로직 (gif.js 연동)
             const btn = this;
             btn.disabled = true;
             btn.innerText = "움짤 생성 중...";
+            progressContainer.style.display = 'block';
 
             const gif = new GIF({
                 workers: 2,
@@ -630,20 +645,41 @@
             });
 
             let framesCaptured = 0;
-            const totalFrames = 15; // 약 1.5초 분량
+            const totalFrames = 15; // 캡처할 총 프레임 수
+
+            function updateUI(val, label) {
+                const percent = Math.round(val);
+                progressBar.style.width = percent + '%';
+                progressPercent.innerText = percent + '%';
+                if(label) progressLabel.innerText = label;
+            }
 
             function captureFrame() {
                 html2canvas(container, { scale: 1.5, useCORS: true, logging: false }).then(canvas => {
                     gif.addFrame(canvas, {delay: 100, copy: true});
                     framesCaptured++;
+                    
+                    // 캡처 진행률 (0% ~ 50%)
+                    const captureProgress = (framesCaptured / totalFrames) * 50;
+                    updateUI(captureProgress, `프레임 캡처 중 (${framesCaptured}/${totalFrames})`);
+
                     if (framesCaptured < totalFrames) {
-                        setTimeout(captureFrame, 100);
+                        setTimeout(captureFrame, 80);
                     } else {
+                        updateUI(50, "렌더링 준비 중...");
+                        
+                        // gif.js 렌더링 진행률 (50% ~ 100%)
+                        gif.on('progress', function(p) {
+                            updateUI(50 + (p * 50), "움짤 렌더링 중...");
+                        });
+
                         gif.on('finished', function(blob) {
                             const link = document.createElement('a');
                             link.download = '텐카_결과물.gif';
                             link.href = URL.createObjectURL(blob);
+                            document.body.appendChild(link); // 다운로드 신뢰성을 위해 DOM에 추가
                             link.click();
+                            document.body.removeChild(link);
                             
                             // 원상 복구
                             if(isMobile) {
@@ -653,6 +689,8 @@
                             updateVisibility();
                             btn.disabled = false;
                             btn.innerText = "최종 결과물 저장";
+                            progressContainer.style.display = 'none';
+                            updateUI(0, "준비 중...");
                         });
                         gif.render();
                     }
@@ -660,7 +698,7 @@
             }
             captureFrame();
         } else {
-            // 기존 PNG 저장 로직
+            // PNG 저장 로직
             html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: null }).then(canvas => {
                 const link = document.createElement('a');
                 link.download = '텐카_결과물.png'; link.href = canvas.toDataURL('image/png'); link.click();
