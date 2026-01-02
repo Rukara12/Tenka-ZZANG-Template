@@ -133,6 +133,7 @@
         .upload-btn { background: #007bff; color: white; border: none; }
         .font-btn { background: #6c757d; color: white; border: none; }
         .history-btn { background: #6c757d; color: white; border: none; font-size: 12px; padding: 8px; flex: 1; }
+        .issue-btn { background: #ffc107; color: #212529; border: none; }
         
         .selector-box {
             background: #f8f9fa;
@@ -225,7 +226,7 @@
     <div class="control-section">
         <div class="section-title">⚙️ 환경 설정</div>
         <label style="cursor:pointer; font-size: 14px; font-weight: bold; color: #007bff;">
-            <input type="checkbox" id="mobile-mode-toggle"> 모바일 전용 UI 모드
+            <input type="checkbox" id="mobile-mode-toggle"> 모바일 최적화 UI 모드
         </label>
     </div>
 
@@ -256,6 +257,7 @@
     </div>
 
     <div style="margin-top: auto;">
+        <button class="issue-btn" onclick="window.open('https://github.com/Rukara12/Tenka-ZZANG-Template/tree/main', '_blank');">이슈 보고</button>
         <div style="display: flex; gap: 5px; margin-bottom: 5px;">
             <button class="history-btn" onclick="undo()">되돌리기</button>
             <button class="history-btn" onclick="redo()">다시하기</button>
@@ -478,6 +480,7 @@
     let isDragging = false;
     let startX, startY;
     let initialDist = 0;
+    let startScale = 1.0; // 핀치 줌 기준점 스케일 변수 추가
 
     function getTargetId() { return document.querySelector('input[name="target"]:checked').value; }
 
@@ -500,9 +503,6 @@
     function updateTransform(id) {
         const s = states[id];
         if (!s || !s.el) return;
-        
-        // 조작 대상이 none(컨테이너 전체)일 경우 scale 처리를 분리하여 관리할 수도 있으나,
-        // 기존 scale 로직을 유지하면서 transform을 적용합니다.
         s.el.style.transform = `translate(${s.x}px, ${s.y}px) scale(${s.scale}) rotate(${s.rotate}deg) scaleX(${s.flip})`;
     }
 
@@ -516,6 +516,8 @@
                     states[id].el.style.display = 'block';
                     updateTransform(id);
                     saveState();
+                    document.querySelector(`input[name="target"][value="${id}"]`).checked = true;
+                    updateVisibility();
                 };
                 reader.readAsDataURL(file);
             }
@@ -523,7 +525,6 @@
     }
     setupUpload(1); setupUpload(2); setupUpload(3);
 
-    // [추가] 모바일 모드 토글 로직
     document.getElementById('mobile-mode-toggle').addEventListener('change', function(e) {
         if (e.target.checked) {
             document.body.classList.add('mobile-mode');
@@ -554,7 +555,9 @@
             isDragging = true;
             startX = e.touches[0].clientX - states[id].x; startY = e.touches[0].clientY - states[id].y;
         } else if (e.touches.length === 2) {
-            isDragging = false; initialDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            isDragging = false; 
+            initialDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            startScale = states[id].scale; // 시작 시점의 스케일 저장
         }
     }, { passive: false });
 
@@ -573,9 +576,9 @@
             updateTransform(id); if (e.cancelable) e.preventDefault();
         } else if (e.touches.length === 2) {
             const currentDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            const zoomFactor = currentDist / initialDist;
-            states[id].scale = Math.max(0.05, Math.min(10, states[id].scale * zoomFactor));
-            initialDist = currentDist; updateTransform(id); if (e.cancelable) e.preventDefault();
+            const zoomFactor = currentDist / initialDist; // 시작 시점과의 거리 비율 계산
+            states[id].scale = Math.max(0.05, Math.min(10, startScale * zoomFactor)); // 시작 스케일에 비율 적용 (안정적인 확대/축소)
+            updateTransform(id); if (e.cancelable) e.preventDefault();
         }
     }, { passive: false });
 
@@ -594,24 +597,18 @@
         const bg = document.getElementById('background-layer');
         const layers = [1, 2, 3].map(i => document.getElementById(`layer-photo-${i}`));
         const bubbles = document.querySelectorAll('.bubble');
-        
-        // 저장 시 모바일 모드로 인한 scale 제거 (임시)
         const isMobile = document.body.classList.contains('mobile-mode');
         const prevScale = states.none.scale;
         const prevX = states.none.x;
         const prevY = states.none.y;
-        
         if(isMobile) {
             states.none.scale = 1.0; states.none.x = 0; states.none.y = 0;
             updateTransform('none');
         }
-
         bg.style.opacity = '1'; layers.forEach(l => l.style.opacity = '1'); bubbles.forEach(b => b.style.opacity = '1');
         html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: null }).then(canvas => {
             const link = document.createElement('a');
             link.download = '텐카_결과물.png'; link.href = canvas.toDataURL('image/png'); link.click();
-            
-            // 저장 후 복구
             if(isMobile) {
                 states.none.scale = prevScale; states.none.x = prevX; states.none.y = prevY;
                 updateTransform('none');
