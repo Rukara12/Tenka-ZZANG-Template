@@ -272,7 +272,7 @@
             </div>
         </div>
         <div style="margin-bottom: 5px; padding: 8px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 6px;">
-            <label style="cursor:pointer; font-size: 13px; font-weight: bold; color: #856404; display: flex; align-items: center;">
+            <label style="cursor:pointer; font-size: 13px; font-weight: bold; color: #856404; align-items: center; display: flex;">
                 <input type="checkbox" id="gif-save-mode" style="margin-right: 8px;"> GIF 애니메이션 유지 (움짤 저장)
             </label>
         </div>
@@ -284,7 +284,7 @@
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
 <script>
-    /* [원본 스크립트 그대로 삽입] */
+    /* [기존 스크립트 유지] */
     const maxFontSize = 42;
     const minFontSize = 12;
 
@@ -298,7 +298,6 @@
         }
     }
 
-    // 작업 내역 관리 시스템 (Undo/Redo)
     let history = [];
     let historyIndex = -1;
 
@@ -350,7 +349,7 @@
     window.addEventListener('load', () => {
         document.fonts.ready.then(() => {
             document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
-            saveState(); // 초기 상태 저장
+            saveState();
         });
         updateVisibility();
     });
@@ -495,7 +494,7 @@
     let isDragging = false;
     let startX, startY;
     let initialDist = 0;
-    let startScale = 1.0; // 핀치 줌 기준점 스케일 변수 추가
+    let startScale = 1.0;
 
     function getTargetId() { return document.querySelector('input[name="target"]:checked').value; }
 
@@ -572,7 +571,7 @@
         } else if (e.touches.length === 2) {
             isDragging = false; 
             initialDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            startScale = states[id].scale; // 시작 시점의 스케일 저장
+            startScale = states[id].scale;
         }
     }, { passive: false });
 
@@ -591,8 +590,8 @@
             updateTransform(id); if (e.cancelable) e.preventDefault();
         } else if (e.touches.length === 2) {
             const currentDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            const zoomFactor = currentDist / initialDist; // 시작 시점과의 거리 비율 계산
-            states[id].scale = Math.max(0.05, Math.min(10, startScale * zoomFactor)); // 시작 스케일에 비율 적용 (안정적인 확대/축소)
+            const zoomFactor = currentDist / initialDist;
+            states[id].scale = Math.max(0.05, Math.min(10, startScale * zoomFactor));
             updateTransform(id); if (e.cancelable) e.preventDefault();
         }
     }, { passive: false });
@@ -608,8 +607,8 @@
         updateTransform(id); triggerHistorySave();
     }, { passive: false });
 
-    /* [저장 로직 수정: 진행바 UI 및 다운로드 버그 해결] */
-    document.getElementById('save-btn').addEventListener('click', function() {
+    /* [오류 수정 및 로직 개선 버전] */
+    document.getElementById('save-btn').addEventListener('click', async function() {
         const isGifMode = document.getElementById('gif-save-mode').checked;
         const bg = document.getElementById('background-layer');
         const layers = [1, 2, 3].map(i => document.getElementById(`layer-photo-${i}`));
@@ -619,13 +618,18 @@
         const prevX = states.none.x;
         const prevY = states.none.y;
 
-        // UI 요소 참조
         const progressContainer = document.getElementById('gif-progress-container');
         const progressBar = document.getElementById('gif-progress-bar');
         const progressPercent = document.getElementById('gif-progress-percent');
         const progressLabel = document.getElementById('gif-progress-label');
 
-        // 캡처 준비 (UI 정리)
+        function updateUI(val, label) {
+            const percent = Math.round(val);
+            progressBar.style.width = percent + '%';
+            progressPercent.innerText = percent + '%';
+            if(label) progressLabel.innerText = label;
+        }
+
         if(isMobile) {
             states.none.scale = 1.0; states.none.x = 0; states.none.y = 0;
             updateTransform('none');
@@ -637,68 +641,74 @@
             btn.disabled = true;
             btn.innerText = "움짤 생성 중...";
             progressContainer.style.display = 'block';
+            updateUI(0, "워커 준비 중...");
 
-            const gif = new GIF({
-                workers: 2,
-                quality: 10,
-                workerScript: 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js'
-            });
+            try {
+                // CORS 우회를 위해 워커 스크립트를 Blob으로 로드
+                const resp = await fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js');
+                const blob = await resp.blob();
+                const workerUrl = URL.createObjectURL(blob);
 
-            let framesCaptured = 0;
-            const totalFrames = 15; // 캡처할 총 프레임 수
-
-            function updateUI(val, label) {
-                const percent = Math.round(val);
-                progressBar.style.width = percent + '%';
-                progressPercent.innerText = percent + '%';
-                if(label) progressLabel.innerText = label;
-            }
-
-            function captureFrame() {
-                html2canvas(container, { scale: 1.5, useCORS: true, logging: false }).then(canvas => {
-                    gif.addFrame(canvas, {delay: 100, copy: true});
-                    framesCaptured++;
-                    
-                    // 캡처 진행률 (0% ~ 50%)
-                    const captureProgress = (framesCaptured / totalFrames) * 50;
-                    updateUI(captureProgress, `프레임 캡처 중 (${framesCaptured}/${totalFrames})`);
-
-                    if (framesCaptured < totalFrames) {
-                        setTimeout(captureFrame, 80);
-                    } else {
-                        updateUI(50, "렌더링 준비 중...");
-                        
-                        // gif.js 렌더링 진행률 (50% ~ 100%)
-                        gif.on('progress', function(p) {
-                            updateUI(50 + (p * 50), "움짤 렌더링 중...");
-                        });
-
-                        gif.on('finished', function(blob) {
-                            const link = document.createElement('a');
-                            link.download = '텐카_결과물.gif';
-                            link.href = URL.createObjectURL(blob);
-                            document.body.appendChild(link); // 다운로드 신뢰성을 위해 DOM에 추가
-                            link.click();
-                            document.body.removeChild(link);
-                            
-                            // 원상 복구
-                            if(isMobile) {
-                                states.none.scale = prevScale; states.none.x = prevX; states.none.y = prevY;
-                                updateTransform('none');
-                            }
-                            updateVisibility();
-                            btn.disabled = false;
-                            btn.innerText = "최종 결과물 저장";
-                            progressContainer.style.display = 'none';
-                            updateUI(0, "준비 중...");
-                        });
-                        gif.render();
-                    }
+                const gif = new GIF({
+                    workers: 4,
+                    quality: 10,
+                    workerScript: workerUrl,
+                    width: 1024,
+                    height: 765
                 });
+
+                let framesCaptured = 0;
+                const totalFrames = 15;
+
+                const captureFrames = async () => {
+                    for (let i = 0; i < totalFrames; i++) {
+                        const canvas = await html2canvas(container, { scale: 1.2, useCORS: true, logging: false });
+                        gif.addFrame(canvas, {delay: 100, copy: true});
+                        framesCaptured++;
+                        updateUI((framesCaptured / totalFrames) * 50, `프레임 캡처 (${framesCaptured}/${totalFrames})`);
+                    }
+
+                    updateUI(50, "렌더링 시작...");
+                    
+                    gif.on('progress', (p) => {
+                        updateUI(50 + (p * 50), "움짤 렌더링 중...");
+                    });
+
+                    gif.on('finished', (blob) => {
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = '텐카_결과물.gif';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        URL.revokeObjectURL(workerUrl); // 메모리 해제
+                        finalize();
+                    });
+
+                    gif.render();
+                };
+
+                await captureFrames();
+
+            } catch (err) {
+                alert("GIF 생성 중 오류 발생: " + err.message);
+                finalize();
             }
-            captureFrame();
+
+            function finalize() {
+                if(isMobile) {
+                    states.none.scale = prevScale; states.none.x = prevX; states.none.y = prevY;
+                    updateTransform('none');
+                }
+                updateVisibility();
+                btn.disabled = false;
+                btn.innerText = "최종 결과물 저장";
+                progressContainer.style.display = 'none';
+                updateUI(0, "준비 중...");
+            }
         } else {
-            // PNG 저장 로직
+            // PNG 저장
             html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: null }).then(canvas => {
                 const link = document.createElement('a');
                 link.download = '텐카_결과물.png'; link.href = canvas.toDataURL('image/png'); link.click();
