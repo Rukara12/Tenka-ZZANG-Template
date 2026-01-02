@@ -42,10 +42,17 @@
             transform-origin: top center;
         }
 
+        /* 모바일 대응 수정 부분 */
         @media screen and (max-width: 1024px) {
             #meme-container {
-                transform: scale(calc(100vw / 1060));
-                margin-bottom: calc(765px * (calc(100vw / 1060) - 1) + 20px);
+                /* 기준 너비를 1060에서 실제 컨테이너 너비인 1024로 변경 */
+                transform: scale(calc(100vw / 1024));
+                /* 기준점을 왼쪽 상단으로 변경하여 화면 잘림 방지 */
+                transform-origin: top left;
+                margin-left: 0;
+                margin-right: 0;
+                /* 스케일링에 따른 하단 여백 재계산 */
+                margin-bottom: calc(765px * (calc(100vw / 1024) - 1) + 20px);
             }
         }
 
