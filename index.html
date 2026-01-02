@@ -27,7 +27,7 @@
             display: flex;
             height: 100vh;
             overflow: hidden;
-            transition: all 0.3s integration;
+            transition: all 0.3s ease;
         }
 
         /* 모바일 모드 스타일 */
@@ -211,9 +211,9 @@
 
 <main class="main-content">
     <div id="meme-container">
-        <div id="layer-photo-1" class="photo-layer"><img id="img-1" class="preview-image" draggable="false"></div>
-        <div id="layer-photo-2" class="photo-layer"><img id="img-2" class="preview-image" draggable="false"></div>
-        <div id="layer-photo-3" class="photo-layer"><img id="img-3" class="preview-image" draggable="false"></div>
+        <div id="layer-photo-1" class="photo-layer"><img id="img-1" class="preview-image" crossorigin="anonymous" draggable="false"></div>
+        <div id="layer-photo-2" class="photo-layer"><img id="img-2" class="preview-image" crossorigin="anonymous" draggable="false"></div>
+        <div id="layer-photo-3" class="photo-layer"><img id="img-3" class="preview-image" crossorigin="anonymous" draggable="false"></div>
         <div id="background-layer"></div>
 
         <div id="bubble-top-left" class="bubble" contenteditable="true" spellcheck="false">텐카쨩 반박하는 내용··· 듣기 싫은 말···</div>
@@ -272,7 +272,6 @@
 <script src="https://cdn.jsdelivr.net/npm/gifshot@0.4.5/build/gifshot.min.js"></script>
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script>
-    /* [원본 스크립트 그대로 삽입] */
     const maxFontSize = 42;
     const minFontSize = 12;
 
@@ -286,7 +285,6 @@
         }
     }
 
-    // 작업 내역 관리 시스템 (Undo/Redo)
     let history = [];
     let historyIndex = -1;
 
@@ -321,7 +319,11 @@
         data.layers.forEach(l => {
             const s = states[l.id];
             s.x = l.x; s.y = l.y; s.scale = l.scale; s.rotate = l.rotate; s.flip = l.flip;
-            if (l.id !== 'none' && l.src) { s.el.src = l.src; s.el.style.display = 'block'; }
+            if (l.id !== 'none' && l.src) { 
+                s.el.crossOrigin = "anonymous"; // Undo 시에도 설정
+                s.el.src = l.src; 
+                s.el.style.display = 'block'; 
+            }
             updateTransform(l.id);
         });
         data.bubbles.forEach(b => {
@@ -338,7 +340,7 @@
     window.addEventListener('load', () => {
         document.fonts.ready.then(() => {
             document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
-            saveState(); // 초기 상태 저장
+            saveState();
         });
         updateVisibility();
     });
@@ -515,8 +517,10 @@
             if (file) {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
-                    states[id].el.src = ev.target.result;
-                    states[id].el.style.display = 'block';
+                    const el = states[id].el;
+                    el.crossOrigin = "anonymous"; // 업로드 시 속성 강제 설정
+                    el.src = ev.target.result;
+                    el.style.display = 'block';
                     updateTransform(id);
                     saveState();
                     document.querySelector(`input[name="target"][value="${id}"]`).checked = true;
@@ -596,7 +600,7 @@
         updateTransform(id); triggerHistorySave();
     }, { passive: false });
 
-    /* [저장 로직 수정: WebP 대응 및 애니메이션 옵션] */
+    /* [저장 로직 개선: CORS 및 WebP 캡처 보강] */
     document.getElementById('save-btn').addEventListener('click', async function() {
         const saveBtn = this;
         const bg = document.getElementById('background-layer');
@@ -609,7 +613,7 @@
         const prevX = states.none.x;
         const prevY = states.none.y;
 
-        saveBtn.innerText = "처리 중...";
+        saveBtn.innerText = "처리 중 (CORS 체크)...";
         saveBtn.disabled = true;
 
         if(isMobile) {
@@ -618,41 +622,61 @@
         }
         bg.style.opacity = '1'; layers.forEach(l => l.style.opacity = '1'); bubbles.forEach(b => b.style.opacity = '1');
 
-        if (isKeepAnim) {
-            // [애니메이션 모드] 움짤 프레임 캡처
-            const frames = [];
-            const frameCount = 15; // 캡처할 프레임 수
-            
-            for (let i = 0; i < frameCount; i++) {
-                const canvas = await html2canvas(container, { scale: 1.5, useCORS: true, logging: false });
-                frames.push(canvas.toDataURL('image/webp'));
-                await new Promise(r => setTimeout(r, 100)); // 프레임 간격
-            }
-
-            gifshot.createGIF({
-                images: frames,
-                gifWidth: 1024,
-                gifHeight: 765,
-                interval: 0.1,
-                numFrames: frameCount
-            }, function(obj) {
-                if (!obj.error) {
-                    const link = document.createElement('a');
-                    link.download = '텐카_움짤_결과물.webp';
-                    link.href = obj.image;
-                    link.click();
+        try {
+            if (isKeepAnim) {
+                const frames = [];
+                const frameCount = 12; // 캡처 수 소폭 조정
+                
+                for (let i = 0; i < frameCount; i++) {
+                    // useCORS: true와 allowTaint: false 설정을 명시하여 캔버스 오염 방지
+                    const canvas = await html2canvas(container, { 
+                        scale: 1.5, 
+                        useCORS: true, 
+                        allowTaint: false,
+                        logging: false 
+                    });
+                    frames.push(canvas.toDataURL('image/webp'));
+                    await new Promise(r => setTimeout(r, 120));
                 }
-                finalize();
-            });
-        } else {
-            // [정적 모드] WebP 저장
-            html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: null }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = '텐카_결과물.webp'; 
-                link.href = canvas.toDataURL('image/webp', 0.9); // WebP 형식 및 품질 설정
-                link.click();
-                finalize();
-            });
+
+                gifshot.createGIF({
+                    images: frames,
+                    gifWidth: 1024,
+                    gifHeight: 765,
+                    interval: 0.12,
+                    numFrames: frameCount
+                }, function(obj) {
+                    if (!obj.error) {
+                        const link = document.createElement('a');
+                        link.download = '텐카_움짤_결과물.webp';
+                        link.href = obj.image;
+                        link.click();
+                    } else {
+                        alert("움짤 생성 중 오류가 발생했습니다: " + obj.error);
+                    }
+                    finalize();
+                });
+            } else {
+                html2canvas(container, { 
+                    scale: 2, 
+                    useCORS: true, 
+                    allowTaint: false,
+                    logging: false, 
+                    backgroundColor: null 
+                }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = '텐카_결과물.webp'; 
+                    link.href = canvas.toDataURL('image/webp', 0.9);
+                    link.click();
+                    finalize();
+                }).catch(err => {
+                    alert("이미지 캡처 실패 (CORS 문제 가능성): " + err);
+                    finalize();
+                });
+            }
+        } catch (e) {
+            alert("처리 중 예외 발생: " + e.message);
+            finalize();
         }
 
         function finalize() {
