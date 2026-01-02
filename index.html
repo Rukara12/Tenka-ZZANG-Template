@@ -104,6 +104,7 @@
         .save-btn { background: #28a745; color: white; border: none; font-size: 16px; padding: 15px; margin-top: 10px; }
         .upload-btn { background: #007bff; color: white; border: none; }
         .font-btn { background: #6c757d; color: white; border: none; }
+        .history-btn { background: #6c757d; color: white; border: none; font-size: 12px; padding: 8px; flex: 1; }
         
         .selector-box {
             background: #f8f9fa;
@@ -133,7 +134,8 @@
         #bubble-top-right { top: 1px; left: 810px; width: 215px; height: 410px; }
         .font-control-panel { margin-top: 10px; font-size: 13px; }
         .slider-item { margin: 8px 0; display: flex; align-items: center; justify-content: space-between; }
-        .slider-item input { width: 100px; }
+        .slider-item input[type="range"] { width: 100px; }
+        .num-input { width: 50px; padding: 4px; border: 1px solid #ced4da; border-radius: 4px; font-size: 12px; }
 
         /* 반응형 스케일 유지 */
         @media screen and (max-width: 1400px) {
@@ -145,7 +147,7 @@
 
 <aside class="sidebar">
     <div class="control-section">
-        <div class="section-title">🖼️ 이미지 업로드</div>
+        <div class="section-title">🖼️ 이미지 업로드(움짤 가능)</div>
         <button class="upload-btn" onclick="document.getElementById('img-input-1').click();">말풍선 사진</button>
         <button class="upload-btn" onclick="document.getElementById('img-input-2').click();">핸드폰 사진</button>
         <button class="upload-btn" onclick="document.getElementById('img-input-3').click();">로고 사진</button>
@@ -161,6 +163,12 @@
             <label><input type="radio" name="target" value="1"> 말풍선 사진</label>
             <label><input type="radio" name="target" value="2"> 핸드폰 사진</label>
             <label><input type="radio" name="target" value="3"> 로고 사진</label>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-top: 10px;">
+                <button onclick="resetLayer()" style="font-size: 12px; padding: 5px;">초기화</button>
+                <button onclick="rotateLayer()" style="font-size: 12px; padding: 5px;">회전</button>
+                <button onclick="flipLayer()" style="font-size: 12px; padding: 5px;">반전</button>
+            </div>
         </div>
         <div class="hint">대상 선택 후 이미지 드래그/휠로 조작하세요.</div>
     </div>
@@ -196,18 +204,27 @@
         </label>
 
         <div id="manual-font-controls" class="font-control-panel" style="display: none;">
-            <div class="slider-item">좌상단: <input type="range" class="font-slider" data-target="bubble-top-left" min="10" max="100" value="42"></div>
-            <div class="slider-item">좌하단: <input type="range" class="font-slider" data-target="bubble-bottom-left" min="10" max="100" value="42"></div>
-            <div class="slider-item">우상단: <input type="range" class="font-slider" data-target="bubble-top-right" min="10" max="100" value="42"></div>
+            <div class="slider-item">좌상단: <input type="range" class="font-slider" data-target="bubble-top-left" min="10" max="100" value="55"> <input type="number" class="num-input font-num" data-target="bubble-top-left" value="55"></div>
+            <div class="slider-item">좌하단: <input type="range" class="font-slider" data-target="bubble-bottom-left" min="10" max="100" value="55"> <input type="number" class="num-input font-num" data-target="bubble-bottom-left" value="55"></div>
+            <div class="slider-item">우상단: <input type="range" class="font-slider" data-target="bubble-top-right" min="10" max="100" value="55"> <input type="number" class="num-input font-num" data-target="bubble-top-right" value="55"></div>
         </div>
     </div>
 
     <div class="control-section">
         <div class="section-title">✨ 효과 설정</div>
-        <label style="cursor:pointer; font-size: 14px;"><input type="checkbox" id="logo-shadow-toggle"> 로고 그림자 효과</label>
+        <label style="cursor:pointer; font-size: 14px; display: block; margin-bottom: 8px;"><input type="checkbox" id="logo-shadow-toggle"> 로고 그림자 효과</label>
+        <label style="cursor:pointer; font-size: 14px; display: block;"><input type="checkbox" id="logo-border-toggle"> 로고 테두리 설정</label>
+        <div id="logo-border-controls" style="display: none; margin-top: 10px; font-size: 13px;">
+            <div class="slider-item">두께: <input type="range" id="logo-border-width" min="0.01" step="0.01" max="5" value="2.5"> <input type="number" id="logo-border-num" class="num-input" value="2.5" step="0.01"></div>
+            <div class="slider-item">색상: <input type="color" id="logo-border-color" value="#000000" style="width: 50px; height: 25px; border: 1px solid #ced4da; padding: 0;"></div>
+        </div>
     </div>
 
     <div style="margin-top: auto;">
+        <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+            <button class="history-btn" onclick="undo()">되돌리기</button>
+            <button class="history-btn" onclick="redo()">다시하기</button>
+        </div>
         <button class="save-btn" id="save-btn">최종 결과물 저장</button>
         <div class="hint" style="text-align: center;">텍스트는 클릭하여 직접 수정 가능</div>
     </div>
@@ -229,22 +246,79 @@
         }
     }
 
+    // 작업 내역 관리 시스템 (Undo/Redo)
+    let history = [];
+    let historyIndex = -1;
+
+    function saveState() {
+        const snapshot = {
+            layers: Object.keys(states).map(id => ({
+                id, x: states[id].x, y: states[id].y, scale: states[id].scale,
+                rotate: states[id].rotate, flip: states[id].flip, src: states[id].el ? states[id].el.src : null
+            })),
+            bubbles: Array.from(document.querySelectorAll('.bubble')).map(b => ({
+                id: b.id, html: b.innerHTML, fontSize: b.style.fontSize
+            }))
+        };
+        const snapshotStr = JSON.stringify(snapshot);
+        if (historyIndex >= 0 && history[historyIndex] === snapshotStr) return;
+
+        history = history.slice(0, historyIndex + 1);
+        history.push(snapshotStr);
+        historyIndex++;
+        if (history.length > 30) { history.shift(); historyIndex--; }
+    }
+
+    function undo() {
+        if (historyIndex > 0) applyState(JSON.parse(history[--historyIndex]));
+    }
+
+    function redo() {
+        if (historyIndex < history.length - 1) applyState(JSON.parse(history[++historyIndex]));
+    }
+
+    function applyState(data) {
+        data.layers.forEach(l => {
+            const s = states[l.id];
+            s.x = l.x; s.y = l.y; s.scale = l.scale; s.rotate = l.rotate; s.flip = l.flip;
+            if (l.id !== 'none' && l.src) { s.el.src = l.src; s.el.style.display = 'block'; }
+            updateTransform(l.id);
+        });
+        data.bubbles.forEach(b => {
+            const el = document.getElementById(b.id);
+            el.innerHTML = b.html; el.style.fontSize = b.fontSize;
+        });
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+        if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+    });
+
     window.addEventListener('load', () => {
         document.fonts.ready.then(() => {
             document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
+            saveState(); // 초기 상태 저장
         });
         updateVisibility();
     });
 
     document.querySelectorAll('.bubble').forEach(bubble => {
-        bubble.addEventListener('input', () => adjustFontSize(bubble));
+        bubble.addEventListener('input', () => { adjustFontSize(bubble); triggerHistorySave(); });
         bubble.addEventListener('paste', (e) => {
             e.preventDefault();
             const text = e.clipboardData.getData('text/plain');
             document.execCommand('insertText', false, text);
             adjustFontSize(bubble);
+            saveState();
         });
     });
+
+    let historyTimer;
+    function triggerHistorySave() {
+        clearTimeout(historyTimer);
+        historyTimer = setTimeout(saveState, 500);
+    }
 
     document.getElementById('auto-font-toggle').addEventListener('change', function(e) {
         const manualControls = document.getElementById('manual-font-controls');
@@ -258,12 +332,26 @@
                 document.getElementById(targetId).style.fontSize = slider.value + 'px';
             });
         }
+        saveState();
     });
 
     document.querySelectorAll('.font-slider').forEach(slider => {
         slider.addEventListener('input', function(e) {
             const targetId = this.getAttribute('data-target');
+            const numInput = this.parentElement.querySelector('.font-num');
+            numInput.value = this.value;
             document.getElementById(targetId).style.fontSize = this.value + 'px';
+        });
+        slider.addEventListener('change', saveState);
+    });
+
+    document.querySelectorAll('.font-num').forEach(numInput => {
+        numInput.addEventListener('input', function(e) {
+            const targetId = this.getAttribute('data-target');
+            const slider = this.parentElement.querySelector('.font-slider');
+            slider.value = this.value;
+            document.getElementById(targetId).style.fontSize = this.value + 'px';
+            triggerHistorySave();
         });
     });
 
@@ -281,85 +369,102 @@
                         bubble.style.fontFamily = fontName;
                         adjustFontSize(bubble);
                     });
+                    saveState();
                     alert('새로운 폰트가 적용되었습니다.');
-                } catch (err) {
-                    alert('폰트 로드 실패');
-                }
+                } catch (err) { alert('폰트 로드 실패'); }
             };
             reader.readAsArrayBuffer(file);
         }
     });
 
-    document.getElementById('logo-shadow-toggle').addEventListener('change', function(e) {
+    function applyLogoFilters() {
         const logoImg = document.getElementById('img-3');
-        if (e.target.checked) {
-            logoImg.style.filter = 'drop-shadow(5px 5px 2px rgba(0,0,0,0.9))';
-        } else {
-            logoImg.style.filter = 'none';
+        const isShadow = document.getElementById('logo-shadow-toggle').checked;
+        const isBorder = document.getElementById('logo-border-toggle').checked;
+        const borderWidth = document.getElementById('logo-border-num').value;
+        const borderColor = document.getElementById('logo-border-color').value;
+        let filterList = [];
+        if (isBorder && borderWidth > 0) {
+             const w = borderWidth; const c = borderColor;
+             filterList.push(`drop-shadow(${w}px 0 0 ${c})`, `drop-shadow(-${w}px 0 0 ${c})`, `drop-shadow(0 ${w}px 0 ${c})`, `drop-shadow(0 -${w}px 0 ${c})`);
+             const d = (w * 0.7).toFixed(2);
+             if (d > 0) filterList.push(`drop-shadow(${d}px ${d}px 0 ${c})`, `drop-shadow(-${d}px -${d}px 0 ${c})`, `drop-shadow(${d}px -${d}px 0 ${c})`, `drop-shadow(-${d}px -${d}px 0 ${c})`);
         }
-    });
+        if (isShadow) filterList.push('drop-shadow(5px 5px 2px rgba(0,0,0,0.9))');
+        logoImg.style.filter = filterList.length > 0 ? filterList.join(' ') : 'none';
+    }
+
+    function updateBorderControlsVisibility() {
+        const isBorder = document.getElementById('logo-border-toggle').checked;
+        document.getElementById('logo-border-controls').style.display = isBorder ? 'block' : 'none';
+        applyLogoFilters();
+        saveState();
+    }
+
+    document.getElementById('logo-shadow-toggle').addEventListener('change', () => { applyLogoFilters(); saveState(); });
+    document.getElementById('logo-border-toggle').addEventListener('change', updateBorderControlsVisibility);
+    document.getElementById('logo-border-width').addEventListener('input', function() { document.getElementById('logo-border-num').value = this.value; applyLogoFilters(); });
+    document.getElementById('logo-border-width').addEventListener('change', saveState);
+    document.getElementById('logo-border-num').addEventListener('input', function() { document.getElementById('logo-border-width').value = this.value; applyLogoFilters(); triggerHistorySave(); });
+    document.getElementById('logo-border-color').addEventListener('input', applyLogoFilters);
+    document.getElementById('logo-border-color').addEventListener('change', saveState);
 
     document.getElementById('sgdb-search-btn').addEventListener('click', function() {
         const term = document.getElementById('sgdb-input').value.trim();
-        if (term) {
-            const url = `https://www.steamgriddb.com/search/grids?term=${encodeURIComponent(term)}`;
-            window.open(url, '_blank');
-        } else {
-            alert('검색어를 입력해주세요.');
-        }
-    });
-
-    document.getElementById('sgdb-input').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') document.getElementById('sgdb-search-btn').click();
+        if (term) window.open(`https://www.steamgriddb.com/search/grids?term=${encodeURIComponent(term)}`, '_blank');
+        else alert('검색어를 입력해주세요.');
     });
 
     const states = {
-        1: { x: 0, y: 0, scale: 1.0, el: document.getElementById('img-1') },
-        2: { x: 0, y: 0, scale: 1.0, el: document.getElementById('img-2') },
-        3: { x: 0, y: 0, scale: 1.0, el: document.getElementById('img-3') }
+        none: { x: 0, y: 0, scale: 1.0, rotate: 0, flip: 1, el: document.getElementById('meme-container') },
+        1: { x: 0, y: 0, scale: 1.0, rotate: 0, flip: 1, el: document.getElementById('img-1') },
+        2: { x: 0, y: 0, scale: 1.0, rotate: 0, flip: 1, el: document.getElementById('img-2') },
+        3: { x: 0, y: 0, scale: 1.0, rotate: 0, flip: 1, el: document.getElementById('img-3') }
     };
+
+    function resetLayer() {
+        const id = getTargetId();
+        states[id].x = 0; states[id].y = 0; states[id].scale = 1.0; states[id].rotate = 0; states[id].flip = 1;
+        updateTransform(id); saveState();
+    }
+
+    function rotateLayer() {
+        const id = getTargetId();
+        states[id].rotate = (states[id].rotate + 90) % 360;
+        updateTransform(id); saveState();
+    }
+
+    function flipLayer() {
+        const id = getTargetId();
+        states[id].flip *= -1;
+        updateTransform(id); saveState();
+    }
 
     let isDragging = false;
     let startX, startY;
     let initialDist = 0;
 
-    function getTargetId() {
-        return document.querySelector('input[name="target"]:checked').value;
-    }
+    function getTargetId() { return document.querySelector('input[name="target"]:checked').value; }
 
     function updateVisibility() {
         const targetId = getTargetId();
         const bg = document.getElementById('background-layer');
-        const p1 = document.getElementById('layer-photo-1');
-        const p2 = document.getElementById('layer-photo-2');
-        const p3 = document.getElementById('layer-photo-3');
+        const layers = [document.getElementById('layer-photo-1'), document.getElementById('layer-photo-2'), document.getElementById('layer-photo-3')];
         const bubbles = document.querySelectorAll('.bubble');
-
-        if (targetId === '1' || targetId === '2' || targetId === '3') {
+        if (targetId !== 'none') {
             bg.style.opacity = '0.3';
-            p1.style.opacity = (targetId === '1' ? '1' : '0');
-            p2.style.opacity = (targetId === '2' ? '1' : '0');
-            p3.style.opacity = (targetId === '3' ? '1' : '0');
+            layers.forEach((l, i) => l.style.opacity = (targetId === (i + 1).toString() ? '1' : '0'));
             bubbles.forEach(b => b.style.opacity = '0');
         } else {
-            bg.style.opacity = '1';
-            p1.style.opacity = '1';
-            p2.style.opacity = '1';
-            p3.style.opacity = '1';
-            bubbles.forEach(b => b.style.opacity = '1');
+            bg.style.opacity = '1'; layers.forEach(l => l.style.opacity = '1'); bubbles.forEach(b => b.style.opacity = '1');
         }
     }
 
-    document.querySelectorAll('input[name="target"]').forEach(radio => {
-        radio.addEventListener('change', updateVisibility);
-    });
+    document.querySelectorAll('input[name="target"]').forEach(radio => radio.addEventListener('change', updateVisibility));
 
     function updateTransform(id) {
-        if (id === 'none') return;
         const s = states[id];
-        if (s.el) {
-            s.el.style.transform = `translate(${s.x}px, ${s.y}px) scale(${s.scale})`;
-        }
+        if (s && s.el) s.el.style.transform = `translate(${s.x}px, ${s.y}px) scale(${s.scale}) rotate(${s.rotate}deg) scaleX(${s.flip})`;
     }
 
     function setupUpload(id) {
@@ -371,6 +476,7 @@
                     states[id].el.src = ev.target.result;
                     states[id].el.style.display = 'block';
                     updateTransform(id);
+                    saveState();
                 };
                 reader.readAsDataURL(file);
             }
@@ -379,84 +485,66 @@
     setupUpload(1); setupUpload(2); setupUpload(3);
 
     const container = document.getElementById('meme-container');
-
     container.addEventListener('mousedown', (e) => {
         if (e.target.classList.contains('bubble')) return;
         const id = getTargetId();
-        if (id === 'none' || !states[id].el.src) return;
+        if (id !== 'none' && !states[id].el.src) return;
         isDragging = true;
-        startX = e.clientX - states[id].x;
-        startY = e.clientY - states[id].y;
+        startX = e.clientX - states[id].x; startY = e.clientY - states[id].y;
     });
 
     container.addEventListener('touchstart', (e) => {
         if (e.target.classList.contains('bubble')) return;
         const id = getTargetId();
-        if (id === 'none' || !states[id].el.src) return;
+        if (id !== 'none' && !states[id].el.src) return;
         if (e.touches.length === 1) {
             isDragging = true;
-            startX = e.touches[0].clientX - states[id].x;
-            startY = e.touches[0].clientY - states[id].y;
+            startX = e.touches[0].clientX - states[id].x; startY = e.touches[0].clientY - states[id].y;
         } else if (e.touches.length === 2) {
-            isDragging = false; 
-            initialDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            isDragging = false; initialDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
         }
     }, { passive: false });
 
     window.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
         const id = getTargetId();
-        if (id === 'none') return;
-        states[id].x = e.clientX - startX;
-        states[id].y = e.clientY - startY;
+        states[id].x = e.clientX - startX; states[id].y = e.clientY - startY;
         updateTransform(id);
     });
 
     window.addEventListener('touchmove', (e) => {
         const id = getTargetId();
-        if (id === 'none' || !states[id].el.src) return;
+        if (id !== 'none' && !states[id].el.src) return;
         if (e.touches.length === 1 && isDragging) {
-            states[id].x = e.touches[0].clientX - startX;
-            states[id].y = e.touches[0].clientY - startY;
-            updateTransform(id);
-            if (e.cancelable) e.preventDefault();
+            states[id].x = e.touches[0].clientX - startX; states[id].y = e.touches[0].clientY - startY;
+            updateTransform(id); if (e.cancelable) e.preventDefault();
         } else if (e.touches.length === 2) {
             const currentDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
             const zoomFactor = currentDist / initialDist;
-            states[id].scale *= zoomFactor;
-            states[id].scale = Math.max(0.05, Math.min(10, states[id].scale));
-            initialDist = currentDist;
-            updateTransform(id);
-            if (e.cancelable) e.preventDefault();
+            states[id].scale = Math.max(0.05, Math.min(10, states[id].scale * zoomFactor));
+            initialDist = currentDist; updateTransform(id); if (e.cancelable) e.preventDefault();
         }
     }, { passive: false });
 
-    window.addEventListener('mouseup', () => isDragging = false);
-    window.addEventListener('touchend', () => { isDragging = false; initialDist = 0; });
+    window.addEventListener('mouseup', () => { if(isDragging) saveState(); isDragging = false; });
+    window.addEventListener('touchend', () => { if(isDragging || initialDist !== 0) saveState(); isDragging = false; initialDist = 0; });
 
     container.addEventListener('wheel', (e) => {
         const id = getTargetId();
-        if (id === 'none' || !states[id].el.src) return;
+        if (id !== 'none' && !states[id].el.src) return;
         e.preventDefault();
-        const zoomSpeed = 0.05;
-        if (e.deltaY < 0) states[id].scale += zoomSpeed;
-        else states[id].scale = Math.max(0.05, states[id].scale - zoomSpeed);
-        updateTransform(id);
+        states[id].scale = Math.max(0.05, states[id].scale + (e.deltaY < 0 ? 0.05 : -0.05));
+        updateTransform(id); triggerHistorySave();
     }, { passive: false });
 
     document.getElementById('save-btn').addEventListener('click', function() {
         const bg = document.getElementById('background-layer');
-        const p1 = document.getElementById('layer-photo-1');
-        const p2 = document.getElementById('layer-photo-2');
-        const p3 = document.getElementById('layer-photo-3');
+        const layers = [1, 2, 3].map(i => document.getElementById(`layer-photo-${i}`));
         const bubbles = document.querySelectorAll('.bubble');
-        bg.style.opacity = '1'; p1.style.opacity = '1'; p2.style.opacity = '1'; p3.style.opacity = '1';
-        bubbles.forEach(b => b.style.opacity = '1');
+        bg.style.opacity = '1'; layers.forEach(l => l.style.opacity = '1'); bubbles.forEach(b => b.style.opacity = '1');
         html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: null }).then(canvas => {
             const link = document.createElement('a');
-            link.download = '텐카_결과물.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
+            link.download = '텐카_결과물.png'; link.href = canvas.toDataURL('image/png'); link.click();
             updateVisibility();
         });
     });
