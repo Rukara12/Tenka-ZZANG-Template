@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>텐카 템플릿</title>
+    <title>텐카 템플릿 - 에디터</title>
     <style>
-        /* [1] 웹폰트 정의 */
+        /* [1] 웹폰트 정의 - 기존 유지 */
         @font-face {
             font-family: 'PyeongtaekSunset';
             src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408@1.0/PTNoeulL.woff2') format('woff2');
             font-weight: 300;
             font-display: swap;
         }
-
         @font-face {
             font-family: 'PyeongtaekSunset';
             src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408@1.0/PTNoeulB.woff2') format('woff2');
@@ -20,189 +19,203 @@
             font-display: swap;
         }
 
-        /* [2] 기본 스타일 */
+        /* [2] 레이아웃 스타일 수정 */
         body { 
             margin: 0; padding: 0; 
-            touch-action: manipulation; 
             font-family: 'PyeongtaekSunset', sans-serif; 
-            overflow-x: hidden;
-            width: 100%;
+            background-color: #e9ecef;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
         }
 
+        /* 사이드바 공통 */
+        .sidebar {
+            width: 300px;
+            background: #ffffff;
+            border-right: 1px solid #dee2e6;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+            overflow-y: auto;
+            z-index: 10;
+        }
+        .sidebar.right {
+            border-right: none;
+            border-left: 1px solid #dee2e6;
+        }
+
+        /* 메인 작업 영역 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            padding: 40px;
+            position: relative;
+        }
+
+        /* 컨트롤 그룹 스타일 */
+        .control-section {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #f1f3f5;
+        }
+        .control-section:last-child { border-bottom: none; }
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #495057;
+            display: flex;
+            align-items: center;
+        }
+
+        /* 기존 요소 스타일 정돈 */
         #meme-container {
             position: relative;
             width: 1024px;
             height: 765px;
-            margin: 20px auto;
-            border: 2px solid #333;
-            overflow: hidden;
-            background-color: #f0f0f0;
+            border: 1px solid #adb5bd;
+            background-color: #fff;
             user-select: none;
             touch-action: none;
-            transform-origin: top center;
-        }
-
-        /* 모바일 대응 수정 부분 */
-        @media screen and (max-width: 1024px) {
-            #meme-container {
-                /* 기준 너비를 1060에서 실제 컨테이너 너비인 1024로 변경 */
-                transform: scale(calc(100vw / 1024));
-                /* 기준점을 왼쪽 상단으로 변경하여 화면 잘림 방지 */
-                transform-origin: top left;
-                margin-left: 0;
-                margin-right: 0;
-                /* 스케일링에 따른 하단 여백 재계산 */
-                margin-bottom: calc(765px * (calc(100vw / 1024) - 1) + 20px);
-            }
-        }
-
-        /* 사진 레이어 수정 */
-        .photo-layer {
-            position: absolute;
-            overflow: hidden;
-            transition: opacity 0.2s;
-        }
-
-        /* 말풍선 사진: 중앙 말풍선 영역 */
-        #layer-photo-1 { 
-            z-index: 1; 
-            top: 0px; 
-            left: 200px; 
-            width: 700px; 
-            height: 440px; 
-        }
-        
-        /* 핸드폰 사진: 핸드폰 화면 영역 */
-        #layer-photo-2 { 
-            z-index: 2; 
-            top: 470px; 
-            left: 531px; 
-            width: 90px; 
-            height: 150px; 
-        }
-
-        /* [수정] 로고 사진: 배경보다 앞에 위치(z-index: 5), 우측 하단 배치 */
-        #layer-photo-3 { 
-            z-index: 5; 
-            top: 445px; 
-            left: 685px; 
-            width: 320px; 
-            height: 300px; 
-        }
-
-        .preview-image {
-            position: absolute;
-            top: 0; left: 0; 
-            width: 100%; height: auto;
-            display: none; cursor: move;
             transform-origin: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            flex-shrink: 0;
         }
 
-        #background-layer {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-image: url('tenka.png'); 
-            background-size: 100% 100%;
-            z-index: 4;
-            pointer-events: none;
-            transition: opacity 0.2s;
+        /* 버튼 및 입력창 디자인 개선 */
+        button { 
+            width: 100%;
+            padding: 10px; 
+            font-size: 14px; 
+            cursor: pointer; 
+            border-radius: 6px; 
+            border: 1px solid #ced4da; 
+            font-weight: bold;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+        button:hover { opacity: 0.8; }
+        .save-btn { background: #28a745; color: white; border: none; font-size: 16px; padding: 15px; margin-top: 10px; }
+        .upload-btn { background: #007bff; color: white; border: none; }
+        .font-btn { background: #6c757d; color: white; border: none; }
+        
+        .selector-box {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        .selector-box label {
+            display: block;
+            margin: 8px 0;
+            cursor: pointer;
+            font-size: 14px;
         }
 
-        /* [3] 말풍선 스타일 */
-        .bubble {
-            position: absolute;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            font-family: 'PyeongtaekSunset', sans-serif;
-            font-weight: 700;
-            line-height: 1.2;
-            z-index: 6;
-            outline: none;
-            white-space: pre-wrap;
-            word-break: break-word;
-            padding: 15px;
-            box-sizing: border-box;
-            overflow: hidden;
-            color: #000;
-            transition: opacity 0.2s;
-        }
-
+        .hint { color: #868e96; font-size: 12px; margin-top: 10px; line-height: 1.4; }
+        
+        /* 기존 기능 유지용 CSS */
+        .photo-layer { position: absolute; overflow: hidden; transition: opacity 0.2s; }
+        #layer-photo-1 { z-index: 1; top: 0px; left: 200px; width: 700px; height: 440px; }
+        #layer-photo-2 { z-index: 2; top: 470px; left: 531px; width: 90px; height: 150px; }
+        #layer-photo-3 { z-index: 5; top: 415px; left: 635px; width: 380px; height: 340px; }
+        .preview-image { position: absolute; top: 0; left: 0; width: 100%; height: auto; display: none; cursor: move; transform-origin: center; }
+        #background-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('tenka.png'); background-size: 100% 100%; z-index: 4; pointer-events: none; transition: opacity 0.2s; }
+        .bubble { position: absolute; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; font-family: 'PyeongtaekSunset', sans-serif; font-weight: 700; line-height: 1.2; z-index: 6; outline: none; white-space: pre-wrap; word-break: break-word; padding: 15px; box-sizing: border-box; overflow: hidden; color: #000; transition: opacity 0.2s; }
         #bubble-top-left { top: 1px; left: 1px; width: 215px; height: 330px; }
         #bubble-bottom-left { top: 420px; left: 1px; width: 230px; height: 350px; }
         #bubble-top-right { top: 1px; left: 810px; width: 215px; height: 410px; }
+        .font-control-panel { margin-top: 10px; font-size: 13px; }
+        .slider-item { margin: 8px 0; display: flex; align-items: center; justify-content: space-between; }
+        .slider-item input { width: 100px; }
 
-        #controls { text-align: center; padding: 20px; background: #eee; border-bottom: 1px solid #ccc; font-family: sans-serif; }
-        .btn-group { margin-bottom: 10px; }
-        button { padding: 10px 20px; font-size: 15px; cursor: pointer; border-radius: 4px; border: 1px solid #999; font-weight: bold; }
-        .save-btn { background: #28a745; color: white; border: none; }
-        .upload-btn { background: #007bff; color: white; border: none; margin: 5px; }
-        .font-btn { background: #6c757d; color: white; border: none; margin: 5px; }
-        .selector { margin: 10px; font-weight: bold; font-size: 16px; padding: 10px; background: #fff; display: inline-block; border-radius: 8px; border: 1px solid #ddd; vertical-align: top; }
-        .hint { color: #666; font-size: 13px; margin-top: 5px; }
-        
-        .font-control-panel { display: block; margin-top: 10px; font-size: 14px; text-align: left; }
-        .slider-item { margin: 5px 0; display: flex; align-items: center; justify-content: space-between; }
-        .slider-item input { width: 120px; margin-left: 10px; }
+        /* 반응형 스케일 유지 */
+        @media screen and (max-width: 1400px) {
+            #meme-container { transform: scale(0.8); }
+        }
     </style>
 </head>
 <body>
 
-<div id="controls">
-    <div class="btn-group">
+<aside class="sidebar">
+    <div class="control-section">
+        <div class="section-title">🖼️ 이미지 업로드</div>
         <button class="upload-btn" onclick="document.getElementById('img-input-1').click();">말풍선 사진</button>
         <button class="upload-btn" onclick="document.getElementById('img-input-2').click();">핸드폰 사진</button>
         <button class="upload-btn" onclick="document.getElementById('img-input-3').click();">로고 사진</button>
-        <button class="font-btn" onclick="document.getElementById('font-input').click();">다른 폰트로 변경</button>
-        <button class="save-btn" id="save-btn">이미지 저장</button>
+        <input type="file" id="img-input-1" accept="image/*" style="display:none">
+        <input type="file" id="img-input-2" accept="image/*" style="display:none">
+        <input type="file" id="img-input-3" accept="image/*" style="display:none">
     </div>
 
-    <div class="selector">
-        조작 대상: 
-        <br>
-        <label style="cursor:pointer"><input type="radio" name="target" value="none" checked> 없음</label>
-        &nbsp;
-        <label style="cursor:pointer"><input type="radio" name="target" value="1"> 말풍선 사진</label>
-        &nbsp;
-        <label style="cursor:pointer"><input type="radio" name="target" value="2"> 핸드폰 사진</label>
-        &nbsp;
-        <label style="cursor:pointer"><input type="radio" name="target" value="3"> 로고 사진</label>
+    <div class="control-section">
+        <div class="section-title">🕹️ 조작 대상</div>
+        <div class="selector-box">
+            <label><input type="radio" name="target" value="none" checked> 선택 없음</label>
+            <label><input type="radio" name="target" value="1"> 말풍선 사진</label>
+            <label><input type="radio" name="target" value="2"> 핸드폰 사진</label>
+            <label><input type="radio" name="target" value="3"> 로고 사진</label>
+        </div>
+        <div class="hint">대상 선택 후 이미지 드래그/휠로 조작하세요.</div>
     </div>
 
-    <div class="selector">
-        폰트 설정: 
-        <label style="cursor:pointer; color: #007bff;"><input type="checkbox" id="auto-font-toggle" checked> 자동 크기 조절</label>
+    <div class="control-section">
+        <div class="section-title">🔍 SteamGridDB 검색</div>
+        <input type="text" id="sgdb-input" placeholder="게임명 입력" style="width: 100%; padding: 8px; margin-bottom: 5px; box-sizing: border-box;">
+        <button class="upload-btn" id="sgdb-search-btn" style="background:#495057">검색하기</button>
+    </div>
+</aside>
+
+<main class="main-content">
+    <div id="meme-container">
+        <div id="layer-photo-1" class="photo-layer"><img id="img-1" class="preview-image" draggable="false"></div>
+        <div id="layer-photo-2" class="photo-layer"><img id="img-2" class="preview-image" draggable="false"></div>
+        <div id="layer-photo-3" class="photo-layer"><img id="img-3" class="preview-image" draggable="false"></div>
+        <div id="background-layer"></div>
+
+        <div id="bubble-top-left" class="bubble" contenteditable="true" spellcheck="false">텐카쨩 반박하는 내용··· 듣기 싫은 말···</div>
+        <div id="bubble-bottom-left" class="bubble" contenteditable="true" spellcheck="false">나쨩 미안··· 잘 안 들려··· 아무튼 어쩌구 저쩌구 한데다 이러저러하고 이래저래 장점이 많아서 재밌는 게임이라는 장황한 설명···</div>
+        <div id="bubble-top-right" class="bubble" contenteditable="true" spellcheck="false">나쨩 이거 봐봐···! 대충 어쩌구 저쩌구 갓겜···!</div>
+    </div>
+</main>
+
+<aside class="sidebar right">
+    <div class="control-section">
+        <div class="section-title">🔤 폰트 설정</div>
+        <button class="font-btn" onclick="document.getElementById('font-input').click();">폰트 변경</button>
+        <input type="file" id="font-input" accept=".ttf, .otf, .woff, .woff2" style="display:none">
+        
+        <label style="display: flex; align-items: center; margin-top: 15px; font-weight: bold; font-size: 14px;">
+            <input type="checkbox" id="auto-font-toggle" checked style="margin-right: 8px;"> 자동 크기 조절
+        </label>
+
         <div id="manual-font-controls" class="font-control-panel" style="display: none;">
             <div class="slider-item">좌상단: <input type="range" class="font-slider" data-target="bubble-top-left" min="10" max="100" value="42"></div>
             <div class="slider-item">좌하단: <input type="range" class="font-slider" data-target="bubble-bottom-left" min="10" max="100" value="42"></div>
             <div class="slider-item">우상단: <input type="range" class="font-slider" data-target="bubble-top-right" min="10" max="100" value="42"></div>
         </div>
     </div>
-    
-    <div class="hint">기본 폰트는 '평택 노을체'입니다. 텍스트는 'Enter'로 줄바꿈이 가능하니 적절히 조절하세요.</div>
-    <div class="hint">사진은 조작 대상 선택 후 드래그/휠/핀치 줌으로 조작하세요.</div>
 
-    <input type="file" id="img-input-1" accept="image/*" style="display:none">
-    <input type="file" id="img-input-2" accept="image/*" style="display:none">
-    <input type="file" id="img-input-3" accept="image/*" style="display:none">
-    <input type="file" id="font-input" accept=".ttf, .otf, .woff, .woff2" style="display:none">
-</div>
+    <div class="control-section">
+        <div class="section-title">✨ 효과 설정</div>
+        <label style="cursor:pointer; font-size: 14px;"><input type="checkbox" id="logo-shadow-toggle"> 로고 그림자 효과</label>
+    </div>
 
-<div id="meme-container">
-    <div id="layer-photo-1" class="photo-layer"><img id="img-1" class="preview-image" draggable="false"></div>
-    <div id="layer-photo-2" class="photo-layer"><img id="img-2" class="preview-image" draggable="false"></div>
-    <div id="layer-photo-3" class="photo-layer"><img id="img-3" class="preview-image" draggable="false"></div>
-    <div id="background-layer"></div>
-
-    <div id="bubble-top-left" class="bubble" contenteditable="true" spellcheck="false">텐카쨩 반박하는 내용··· 듣기 싫은 말···</div>
-    <div id="bubble-bottom-left" class="bubble" contenteditable="true" spellcheck="false">나쨩 미안··· 잘 안 들려··· 아무튼 어쩌구 저쩌구 한데다 이러저러하고 이래저래 장점이 많아서 재밌는 게임이라는 장황한 설명···</div>
-    <div id="bubble-top-right" class="bubble" contenteditable="true" spellcheck="false">나쨩 이거 봐봐···! 대충 어쩌구 저쩌구 갓겜···!</div>
-</div>
+    <div style="margin-top: auto;">
+        <button class="save-btn" id="save-btn">최종 결과물 저장</button>
+        <div class="hint" style="text-align: center;">텍스트는 클릭하여 직접 수정 가능</div>
+    </div>
+</aside>
 
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script>
+    /* [원본 스크립트 그대로 삽입] */
     const maxFontSize = 42;
     const minFontSize = 12;
 
@@ -275,6 +288,29 @@
             };
             reader.readAsArrayBuffer(file);
         }
+    });
+
+    document.getElementById('logo-shadow-toggle').addEventListener('change', function(e) {
+        const logoImg = document.getElementById('img-3');
+        if (e.target.checked) {
+            logoImg.style.filter = 'drop-shadow(5px 5px 2px rgba(0,0,0,0.9))';
+        } else {
+            logoImg.style.filter = 'none';
+        }
+    });
+
+    document.getElementById('sgdb-search-btn').addEventListener('click', function() {
+        const term = document.getElementById('sgdb-input').value.trim();
+        if (term) {
+            const url = `https://www.steamgriddb.com/search/grids?term=${encodeURIComponent(term)}`;
+            window.open(url, '_blank');
+        } else {
+            alert('검색어를 입력해주세요.');
+        }
+    });
+
+    document.getElementById('sgdb-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') document.getElementById('sgdb-search-btn').click();
     });
 
     const states = {
