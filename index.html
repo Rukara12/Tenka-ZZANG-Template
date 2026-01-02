@@ -269,7 +269,7 @@
     </div>
 </aside>
 
-<script src="https://cdn.jsdelivr.net/npm/gifshot@0.4.5/build/gifshot.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.4.5/gifshot.min.js"></script>
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script>
     const maxFontSize = 42;
@@ -600,7 +600,7 @@
         updateTransform(id); triggerHistorySave();
     }, { passive: false });
 
-    /* [저장 로직 개선: CORS 및 WebP 캡처 보강] */
+    /* [저장 로직 개선: gifshot 정의 체크 추가] */
     document.getElementById('save-btn').addEventListener('click', async function() {
         const saveBtn = this;
         const bg = document.getElementById('background-layer');
@@ -624,11 +624,17 @@
 
         try {
             if (isKeepAnim) {
+                // [수정] gifshot 로드 여부 확인
+                if (typeof gifshot === 'undefined') {
+                    alert("움짤 생성을 위한 라이브러리(gifshot)가 로드되지 않았습니다. 인터넷 연결을 확인하거나 페이지를 새로고침 해주세요.");
+                    finalize();
+                    return;
+                }
+
                 const frames = [];
-                const frameCount = 12; // 캡처 수 소폭 조정
+                const frameCount = 12; 
                 
                 for (let i = 0; i < frameCount; i++) {
-                    // useCORS: true와 allowTaint: false 설정을 명시하여 캔버스 오염 방지
                     const canvas = await html2canvas(container, { 
                         scale: 1.5, 
                         useCORS: true, 
