@@ -211,9 +211,9 @@
 
 <main class="main-content">
     <div id="meme-container">
-        <div id="layer-photo-1" class="photo-layer"><img id="img-1" class="preview-image" draggable="false"></div>
-        <div id="layer-photo-2" class="photo-layer"><img id="img-2" class="preview-image" draggable="false"></div>
-        <div id="layer-photo-3" class="photo-layer"><img id="img-3" class="preview-image" draggable="false"></div>
+        <div id="layer-photo-1" class="photo-layer"><img id="img-1" class="preview-image" draggable="false" crossorigin="anonymous"></div>
+        <div id="layer-photo-2" class="photo-layer"><img id="img-2" class="preview-image" draggable="false" crossorigin="anonymous"></div>
+        <div id="layer-photo-3" class="photo-layer"><img id="img-3" class="preview-image" draggable="false" crossorigin="anonymous"></div>
         <div id="background-layer"></div>
 
         <div id="bubble-top-left" class="bubble" contenteditable="true" spellcheck="false">텐카쨩 반박하는 내용··· 듣기 싫은 말···</div>
@@ -284,7 +284,6 @@
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
 <script>
-    /* [기존 스크립트 유지] */
     const maxFontSize = 42;
     const minFontSize = 12;
 
@@ -332,7 +331,11 @@
         data.layers.forEach(l => {
             const s = states[l.id];
             s.x = l.x; s.y = l.y; s.scale = l.scale; s.rotate = l.rotate; s.flip = l.flip;
-            if (l.id !== 'none' && l.src) { s.el.src = l.src; s.el.style.display = 'block'; }
+            if (l.id !== 'none' && l.src) { 
+                s.el.crossOrigin = "anonymous";
+                s.el.src = l.src; 
+                s.el.style.display = 'block'; 
+            }
             updateTransform(l.id);
         });
         data.bubbles.forEach(b => {
@@ -526,6 +529,7 @@
             if (file) {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
+                    states[id].el.crossOrigin = "anonymous"; // 업로드 시에도 설정
                     states[id].el.src = ev.target.result;
                     states[id].el.style.display = 'block';
                     updateTransform(id);
@@ -607,7 +611,6 @@
         updateTransform(id); triggerHistorySave();
     }, { passive: false });
 
-    /* [오류 수정 및 로직 개선 버전] */
     document.getElementById('save-btn').addEventListener('click', async function() {
         const isGifMode = document.getElementById('gif-save-mode').checked;
         const bg = document.getElementById('background-layer');
@@ -644,7 +647,6 @@
             updateUI(0, "워커 준비 중...");
 
             try {
-                // CORS 우회를 위해 워커 스크립트를 Blob으로 로드
                 const resp = await fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js');
                 const blob = await resp.blob();
                 const workerUrl = URL.createObjectURL(blob);
@@ -662,7 +664,8 @@
 
                 const captureFrames = async () => {
                     for (let i = 0; i < totalFrames; i++) {
-                        const canvas = await html2canvas(container, { scale: 1.2, useCORS: true, logging: false });
+                        // html2canvas 옵션에 allowTaint: false 추가
+                        const canvas = await html2canvas(container, { scale: 1.2, useCORS: true, allowTaint: false, logging: false });
                         gif.addFrame(canvas, {delay: 100, copy: true});
                         framesCaptured++;
                         updateUI((framesCaptured / totalFrames) * 50, `프레임 캡처 (${framesCaptured}/${totalFrames})`);
@@ -682,7 +685,7 @@
                         link.click();
                         document.body.removeChild(link);
                         
-                        URL.revokeObjectURL(workerUrl); // 메모리 해제
+                        URL.revokeObjectURL(workerUrl);
                         finalize();
                     });
 
@@ -708,8 +711,8 @@
                 updateUI(0, "준비 중...");
             }
         } else {
-            // PNG 저장
-            html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: null }).then(canvas => {
+            // PNG 저장 시에도 allowTaint: false 적용
+            html2canvas(container, { scale: 2, useCORS: true, allowTaint: false, logging: false, backgroundColor: null }).then(canvas => {
                 const link = document.createElement('a');
                 link.download = '텐카_결과물.png'; link.href = canvas.toDataURL('image/png'); link.click();
                 if(isMobile) {
