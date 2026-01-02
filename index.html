@@ -27,6 +27,14 @@
             display: flex;
             height: 100vh;
             overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        /* 모바일 모드 스타일 */
+        body.mobile-mode {
+            flex-direction: column;
+            overflow-y: auto;
+            height: auto;
         }
 
         /* 사이드바 공통 */
@@ -46,6 +54,14 @@
             border-left: 1px solid #dee2e6;
         }
 
+        body.mobile-mode .sidebar {
+            width: 100%;
+            border: none;
+            order: 2;
+            box-sizing: border-box;
+            overflow-y: visible;
+        }
+
         /* 메인 작업 영역 */
         .main-content {
             flex: 1;
@@ -56,6 +72,13 @@
             overflow: auto;
             padding: 40px;
             position: relative;
+        }
+
+        body.mobile-mode .main-content {
+            order: 1;
+            padding: 20px 0;
+            min-height: 450px;
+            background: #ced4da;
         }
 
         /* 컨트롤 그룹 스타일 */
@@ -86,6 +109,11 @@
             transform-origin: center;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             flex-shrink: 0;
+        }
+
+        /* 모바일 모드 시 컨테이너 크기 자동 조절 */
+        body.mobile-mode #meme-container {
+            transform: scale(0.35); /* 기본 배율, JS에서 동적 계산 */
         }
 
         /* 버튼 및 입력창 디자인 개선 */
@@ -139,7 +167,7 @@
 
         /* 반응형 스케일 유지 */
         @media screen and (max-width: 1400px) {
-            #meme-container { transform: scale(0.8); }
+            body:not(.mobile-mode) #meme-container { transform: scale(0.8); }
         }
     </style>
 </head>
@@ -194,6 +222,13 @@
 </main>
 
 <aside class="sidebar right">
+    <div class="control-section">
+        <div class="section-title">⚙️ 환경 설정</div>
+        <label style="cursor:pointer; font-size: 14px; font-weight: bold; color: #007bff;">
+            <input type="checkbox" id="mobile-mode-toggle"> 모바일 전용 UI 모드
+        </label>
+    </div>
+
     <div class="control-section">
         <div class="section-title">🔤 폰트 설정</div>
         <button class="font-btn" onclick="document.getElementById('font-input').click();">폰트 변경</button>
@@ -464,7 +499,11 @@
 
     function updateTransform(id) {
         const s = states[id];
-        if (s && s.el) s.el.style.transform = `translate(${s.x}px, ${s.y}px) scale(${s.scale}) rotate(${s.rotate}deg) scaleX(${s.flip})`;
+        if (!s || !s.el) return;
+        
+        // 조작 대상이 none(컨테이너 전체)일 경우 scale 처리를 분리하여 관리할 수도 있으나,
+        // 기존 scale 로직을 유지하면서 transform을 적용합니다.
+        s.el.style.transform = `translate(${s.x}px, ${s.y}px) scale(${s.scale}) rotate(${s.rotate}deg) scaleX(${s.flip})`;
     }
 
     function setupUpload(id) {
@@ -483,6 +522,20 @@
         });
     }
     setupUpload(1); setupUpload(2); setupUpload(3);
+
+    // [추가] 모바일 모드 토글 로직
+    document.getElementById('mobile-mode-toggle').addEventListener('change', function(e) {
+        if (e.target.checked) {
+            document.body.classList.add('mobile-mode');
+            const autoScale = (window.innerWidth / 1100).toFixed(2);
+            states.none.scale = parseFloat(autoScale);
+        } else {
+            document.body.classList.remove('mobile-mode');
+            states.none.scale = 1.0;
+            states.none.x = 0; states.none.y = 0;
+        }
+        updateTransform('none');
+    });
 
     const container = document.getElementById('meme-container');
     container.addEventListener('mousedown', (e) => {
@@ -541,10 +594,28 @@
         const bg = document.getElementById('background-layer');
         const layers = [1, 2, 3].map(i => document.getElementById(`layer-photo-${i}`));
         const bubbles = document.querySelectorAll('.bubble');
+        
+        // 저장 시 모바일 모드로 인한 scale 제거 (임시)
+        const isMobile = document.body.classList.contains('mobile-mode');
+        const prevScale = states.none.scale;
+        const prevX = states.none.x;
+        const prevY = states.none.y;
+        
+        if(isMobile) {
+            states.none.scale = 1.0; states.none.x = 0; states.none.y = 0;
+            updateTransform('none');
+        }
+
         bg.style.opacity = '1'; layers.forEach(l => l.style.opacity = '1'); bubbles.forEach(b => b.style.opacity = '1');
         html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: null }).then(canvas => {
             const link = document.createElement('a');
             link.download = '텐카_결과물.png'; link.href = canvas.toDataURL('image/png'); link.click();
+            
+            // 저장 후 복구
+            if(isMobile) {
+                states.none.scale = prevScale; states.none.x = prevX; states.none.y = prevY;
+                updateTransform('none');
+            }
             updateVisibility();
         });
     });
