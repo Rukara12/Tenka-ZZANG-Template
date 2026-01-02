@@ -262,12 +262,18 @@
             <button class="history-btn" onclick="undo()">되돌리기</button>
             <button class="history-btn" onclick="redo()">다시하기</button>
         </div>
+        <div style="margin-bottom: 5px; padding: 8px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 6px;">
+            <label style="cursor:pointer; font-size: 13px; font-weight: bold; color: #856404; display: flex; align-items: center;">
+                <input type="checkbox" id="gif-save-mode" style="margin-right: 8px;"> GIF 애니메이션 유지 (움짤 저장)
+            </label>
+        </div>
         <button class="save-btn" id="save-btn">최종 결과물 저장</button>
         <div class="hint" style="text-align: center;">텍스트는 클릭하여 직접 수정 가능</div>
     </div>
 </aside>
 
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
 <script>
     /* [원본 스크립트 그대로 삽입] */
     const maxFontSize = 42;
@@ -593,7 +599,9 @@
         updateTransform(id); triggerHistorySave();
     }, { passive: false });
 
+    /* [저장 로직 수정: 체크박스 상태에 따른 분기 처리] */
     document.getElementById('save-btn').addEventListener('click', function() {
+        const isGifMode = document.getElementById('gif-save-mode').checked;
         const bg = document.getElementById('background-layer');
         const layers = [1, 2, 3].map(i => document.getElementById(`layer-photo-${i}`));
         const bubbles = document.querySelectorAll('.bubble');
@@ -601,20 +609,68 @@
         const prevScale = states.none.scale;
         const prevX = states.none.x;
         const prevY = states.none.y;
+
+        // 캡처 준비 (UI 정리)
         if(isMobile) {
             states.none.scale = 1.0; states.none.x = 0; states.none.y = 0;
             updateTransform('none');
         }
         bg.style.opacity = '1'; layers.forEach(l => l.style.opacity = '1'); bubbles.forEach(b => b.style.opacity = '1');
-        html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: null }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = '텐카_결과물.png'; link.href = canvas.toDataURL('image/png'); link.click();
-            if(isMobile) {
-                states.none.scale = prevScale; states.none.x = prevX; states.none.y = prevY;
-                updateTransform('none');
+
+        if (isGifMode) {
+            // GIF 캡처 로직 (gif.js 연동)
+            const btn = this;
+            btn.disabled = true;
+            btn.innerText = "움짤 생성 중...";
+
+            const gif = new GIF({
+                workers: 2,
+                quality: 10,
+                workerScript: 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js'
+            });
+
+            let framesCaptured = 0;
+            const totalFrames = 15; // 약 1.5초 분량
+
+            function captureFrame() {
+                html2canvas(container, { scale: 1.5, useCORS: true, logging: false }).then(canvas => {
+                    gif.addFrame(canvas, {delay: 100, copy: true});
+                    framesCaptured++;
+                    if (framesCaptured < totalFrames) {
+                        setTimeout(captureFrame, 100);
+                    } else {
+                        gif.on('finished', function(blob) {
+                            const link = document.createElement('a');
+                            link.download = '텐카_결과물.gif';
+                            link.href = URL.createObjectURL(blob);
+                            link.click();
+                            
+                            // 원상 복구
+                            if(isMobile) {
+                                states.none.scale = prevScale; states.none.x = prevX; states.none.y = prevY;
+                                updateTransform('none');
+                            }
+                            updateVisibility();
+                            btn.disabled = false;
+                            btn.innerText = "최종 결과물 저장";
+                        });
+                        gif.render();
+                    }
+                });
             }
-            updateVisibility();
-        });
+            captureFrame();
+        } else {
+            // 기존 PNG 저장 로직
+            html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: null }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = '텐카_결과물.png'; link.href = canvas.toDataURL('image/png'); link.click();
+                if(isMobile) {
+                    states.none.scale = prevScale; states.none.x = prevX; states.none.y = prevY;
+                    updateTransform('none');
+                }
+                updateVisibility();
+            });
+        }
     });
 </script>
 
