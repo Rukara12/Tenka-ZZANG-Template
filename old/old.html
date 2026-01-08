@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>텐카 템플릿 - 에디터</title>
+    <style>
+        /* [1] 웹폰트 정의 - 기존 유지 */
+        @font-face {
+            font-family: 'PyeongtaekSunset';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408@1.0/PTNoeulL.woff2') format('woff2');
+            font-weight: 300;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'PyeongtaekSunset';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408@1.0/PTNoeulB.woff2') format('woff2');
+            font-weight: 700;
+            font-display: swap;
+        }
+
+        /* [2] 레이아웃 스타일 수정 */
+        body { 
+            margin: 0; padding: 0; 
+            font-family: 'PyeongtaekSunset', sans-serif; 
+            background-color: #e9ecef;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        /* 모바일 모드 스타일 */
+        body.mobile-mode {
+            flex-direction: column;
+            overflow-y: auto;
+            height: auto;
+        }
+
+        /* 사이드바 공통 */
+        .sidebar {
+            width: 300px;
+            background: #ffffff;
+            border-right: 1px solid #dee2e6;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+            overflow-y: auto;
+            z-index: 10;
+        }
+        .sidebar.right {
+            border-right: none;
+            border-left: 1px solid #dee2e6;
+        }
+
+        body.mobile-mode .sidebar {
+            width: 100%;
+            border: none;
+            order: 2;
+            box-sizing: border-box;
+            overflow-y: visible;
+        }
+
+        /* 메인 작업 영역 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            padding: 40px;
+            position: relative;
+        }
+
+        body.mobile-mode .main-content {
+            order: 1;
+            padding: 20px 0;
+            min-height: 450px;
+            background: #ced4da;
+        }
+
+        /* 컨트롤 그룹 스타일 */
+        .control-section {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #f1f3f5;
+        }
+        .control-section:last-child { border-bottom: none; }
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #495057;
+            display: flex;
+            align-items: center;
+        }
+
+        /* 기존 요소 스타일 정돈 */
+        #meme-container {
+            position: relative;
+            width: 1024px;
+            height: 765px;
+            border: 1px solid #adb5bd;
+            background-color: #fff;
+            user-select: none;
+            touch-action: none;
+            transform-origin: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+
+        /* 모바일 모드 시 컨테이너 크기 자동 조절 */
+        body.mobile-mode #meme-container {
+            transform: scale(0.35); /* 기본 배율, JS에서 동적 계산 */
+        }
+
+        /* 버튼 및 입력창 디자인 개선 */
+        button { 
+            width: 100%;
+            padding: 10px; 
+            font-size: 14px; 
+            cursor: pointer; 
+            border-radius: 6px; 
+            border: 1px solid #ced4da; 
+            font-weight: bold;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+        button:hover { opacity: 0.8; }
+        .save-btn { background: #28a745; color: white; border: none; font-size: 16px; padding: 15px; margin-top: 10px; }
+        .upload-btn { background: #007bff; color: white; border: none; }
+        .font-btn { background: #6c757d; color: white; border: none; }
+        .history-btn { background: #6c757d; color: white; border: none; font-size: 12px; padding: 8px; flex: 1; }
+        .issue-btn { background: #ffc107; color: #212529; border: none; }
+        
+        .selector-box {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        .selector-box label {
+            display: block;
+            margin: 8px 0;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .hint { color: #868e96; font-size: 12px; margin-top: 10px; line-height: 1.4; }
+        
+        /* 기존 기능 유지용 CSS */
+        .photo-layer { position: absolute; overflow: hidden; transition: opacity 0.2s; }
+        #layer-photo-1 { z-index: 1; top: 0px; left: 200px; width: 700px; height: 440px; }
+        #layer-photo-2 { z-index: 2; top: 470px; left: 531px; width: 90px; height: 150px; }
+        #layer-photo-3 { z-index: 5; top: 415px; left: 635px; width: 380px; height: 340px; }
+        .preview-image { position: absolute; top: 0; left: 0; width: 100%; height: auto; display: none; cursor: move; transform-origin: center; }
+        #background-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('tenka.png'); background-size: 100% 100%; z-index: 4; pointer-events: none; transition: opacity 0.2s; }
+        .bubble { position: absolute; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; font-family: 'PyeongtaekSunset', sans-serif; font-weight: 700; line-height: 1.2; z-index: 6; outline: none; white-space: pre-wrap; word-break: break-word; padding: 15px; box-sizing: border-box; overflow: hidden; color: #000; transition: opacity 0.2s; }
+        #bubble-top-left { top: 1px; left: 1px; width: 215px; height: 330px; }
+        #bubble-bottom-left { top: 420px; left: 1px; width: 230px; height: 350px; }
+        #bubble-top-right { top: 1px; left: 810px; width: 215px; height: 410px; }
+        .font-control-panel { margin-top: 10px; font-size: 13px; }
+        .slider-item { margin: 8px 0; display: flex; align-items: center; justify-content: space-between; }
+        .slider-item input[type="range"] { width: 100px; }
+        .num-input { width: 50px; padding: 4px; border: 1px solid #ced4da; border-radius: 4px; font-size: 12px; }
+
+        /* 반응형 스케일 유지 */
+        @media screen and (max-width: 1400px) {
+            body:not(.mobile-mode) #meme-container { transform: scale(0.8); }
+        }
+    </style>
+</head>
+<body>
+
+<aside class="sidebar">
+    <div class="control-section">
+        <div class="section-title">🖼️ 이미지 업로드(움짤 저장 불가)</div>
+        <button class="upload-btn" onclick="document.getElementById('img-input-1').click();">말풍선 사진</button>
+        <button class="upload-btn" onclick="document.getElementById('img-input-2').click();">핸드폰 사진</button>
+        <button class="upload-btn" onclick="document.getElementById('img-input-3').click();">로고 사진</button>
+        <input type="file" id="img-input-1" accept="image/*" style="display:none">
+        <input type="file" id="img-input-2" accept="image/*" style="display:none">
+        <input type="file" id="img-input-3" accept="image/*" style="display:none">
+    </div>
+
+    <div class="control-section">
+        <div class="section-title">🕹️ 조작 대상</div>
+        <div class="selector-box">
+            <label><input type="radio" name="target" value="none" checked> 선택 없음</label>
+            <label><input type="radio" name="target" value="1"> 말풍선 사진</label>
+            <label><input type="radio" name="target" value="2"> 핸드폰 사진</label>
+            <label><input type="radio" name="target" value="3"> 로고 사진</label>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-top: 10px;">
+                <button onclick="resetLayer()" style="font-size: 12px; padding: 5px;">초기화</button>
+                <button onclick="rotateLayer()" style="font-size: 12px; padding: 5px;">회전</button>
+                <button onclick="flipLayer()" style="font-size: 12px; padding: 5px;">반전</button>
+            </div>
+        </div>
+        <div class="hint">대상 선택 후 이미지 드래그/휠로 조작하세요.</div>
+    </div>
+
+    <div class="control-section">
+        <div class="section-title">🔍 SteamGridDB 검색</div>
+        <input type="text" id="sgdb-input" placeholder="게임명 입력" style="width: 100%; padding: 8px; margin-bottom: 5px; box-sizing: border-box;">
+        <button class="upload-btn" id="sgdb-search-btn" style="background:#495057">검색하기</button>
+    </div>
+</aside>
+
+<main class="main-content">
+    <div id="meme-container">
+        <div id="layer-photo-1" class="photo-layer"><img id="img-1" class="preview-image" draggable="false"></div>
+        <div id="layer-photo-2" class="photo-layer"><img id="img-2" class="preview-image" draggable="false"></div>
+        <div id="layer-photo-3" class="photo-layer"><img id="img-3" class="preview-image" draggable="false"></div>
+        <div id="background-layer"></div>
+
+        <div id="bubble-top-left" class="bubble" contenteditable="true" spellcheck="false">텐카쨩 반박하는 내용··· 듣기 싫은 말···</div>
+        <div id="bubble-bottom-left" class="bubble" contenteditable="true" spellcheck="false">나쨩 미안··· 잘 안 들려··· 아무튼 어쩌구 저쩌구 한데다 이러저러하고 이래저래 장점이 많아서 재밌는 게임이라는 장황한 설명···</div>
+        <div id="bubble-top-right" class="bubble" contenteditable="true" spellcheck="false">나쨩 이거 봐봐···! 대충 어쩌구 저쩌구 갓겜···!</div>
+    </div>
+</main>
+
+<aside class="sidebar right">
+    <div class="control-section">
+        <div class="section-title">⚙️ 환경 설정</div>
+        <label style="cursor:pointer; font-size: 14px; font-weight: bold; color: #007bff;">
+            <input type="checkbox" id="mobile-mode-toggle"> 모바일 최적화 UI 모드
+        </label>
+    </div>
+
+    <div class="control-section">
+        <div class="section-title">🔤 폰트 설정</div>
+        <button class="font-btn" onclick="document.getElementById('font-input').click();">폰트 변경</button>
+        <input type="file" id="font-input" accept=".ttf, .otf, .woff, .woff2" style="display:none">
+        
+        <label style="display: flex; align-items: center; margin-top: 15px; font-weight: bold; font-size: 14px;">
+            <input type="checkbox" id="auto-font-toggle" checked style="margin-right: 8px;"> 자동 크기 조절
+        </label>
+
+        <div id="manual-font-controls" class="font-control-panel" style="display: none;">
+            <div class="slider-item">좌상단: <input type="range" class="font-slider" data-target="bubble-top-left" min="10" max="100" value="55"> <input type="number" class="num-input font-num" data-target="bubble-top-left" value="55"></div>
+            <div class="slider-item">좌하단: <input type="range" class="font-slider" data-target="bubble-bottom-left" min="10" max="100" value="55"> <input type="number" class="num-input font-num" data-target="bubble-bottom-left" value="55"></div>
+            <div class="slider-item">우상단: <input type="range" class="font-slider" data-target="bubble-top-right" min="10" max="100" value="55"> <input type="number" class="num-input font-num" data-target="bubble-top-right" value="55"></div>
+        </div>
+    </div>
+
+    <div class="control-section">
+        <div class="section-title">✨ 효과 설정</div>
+        <label style="cursor:pointer; font-size: 14px; display: block; margin-bottom: 8px;"><input type="checkbox" id="logo-shadow-toggle"> 로고 그림자 효과</label>
+        <label style="cursor:pointer; font-size: 14px; display: block;"><input type="checkbox" id="logo-border-toggle"> 로고 테두리 설정</label>
+        <div id="logo-border-controls" style="display: none; margin-top: 10px; font-size: 13px;">
+            <div class="slider-item">두께: <input type="range" id="logo-border-width" min="0.01" step="0.01" max="5" value="2.5"> <input type="number" id="logo-border-num" class="num-input" value="2.5" step="0.01"></div>
+            <div class="slider-item">색상: <input type="color" id="logo-border-color" value="#000000" style="width: 50px; height: 25px; border: 1px solid #ced4da; padding: 0;"></div>
+        </div>
+    </div>
+
+    <div style="margin-top: auto;">
+        <button class="issue-btn" onclick="window.open('https://github.com/Rukara12/Tenka-ZZANG-Template/tree/main', '_blank');">이슈 보고</button>
+        <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+            <button class="history-btn" onclick="undo()">되돌리기</button>
+            <button class="history-btn" onclick="redo()">다시하기</button>
+        </div>
+        <button class="save-btn" id="save-btn">최종 결과물 저장</button>
+        <div class="hint" style="text-align: center;">텍스트는 클릭하여 직접 수정 가능</div>
+    </div>
+</aside>
+
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+<script>
+    const maxFontSize = 42;
+    const minFontSize = 12;
+
+    function adjustFontSize(el) {
+        if (!document.getElementById('auto-font-toggle').checked) return;
+        let fontSize = maxFontSize;
+        el.style.fontSize = fontSize + 'px';
+        while ((el.scrollHeight > el.offsetHeight || el.scrollWidth > el.offsetWidth) && fontSize > minFontSize) {
+            fontSize--;
+            el.style.fontSize = fontSize + 'px';
+        }
+    }
+
+    let history = [];
+    let historyIndex = -1;
+
+    function saveState() {
+        const snapshot = {
+            layers: Object.keys(states).map(id => ({
+                id, x: states[id].x, y: states[id].y, scale: states[id].scale,
+                rotate: states[id].rotate, flip: states[id].flip, src: states[id].el ? states[id].el.src : null
+            })),
+            bubbles: Array.from(document.querySelectorAll('.bubble')).map(b => ({
+                id: b.id, html: b.innerHTML, fontSize: b.style.fontSize
+            }))
+        };
+        const snapshotStr = JSON.stringify(snapshot);
+        if (historyIndex >= 0 && history[historyIndex] === snapshotStr) return;
+
+        history = history.slice(0, historyIndex + 1);
+        history.push(snapshotStr);
+        historyIndex++;
+        if (history.length > 30) { history.shift(); historyIndex--; }
+    }
+
+    function undo() {
+        if (historyIndex > 0) applyState(JSON.parse(history[--historyIndex]));
+    }
+
+    function redo() {
+        if (historyIndex < history.length - 1) applyState(JSON.parse(history[++historyIndex]));
+    }
+
+    function applyState(data) {
+        data.layers.forEach(l => {
+            const s = states[l.id];
+            s.x = l.x; s.y = l.y; s.scale = l.scale; s.rotate = l.rotate; s.flip = l.flip;
+            if (l.id !== 'none' && l.src) { s.el.src = l.src; s.el.style.display = 'block'; }
+            updateTransform(l.id);
+        });
+        data.bubbles.forEach(b => {
+            const el = document.getElementById(b.id);
+            el.innerHTML = b.html; el.style.fontSize = b.fontSize;
+        });
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+        if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+    });
+
+    window.addEventListener('load', () => {
+        document.fonts.ready.then(() => {
+            document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
+            saveState();
+        });
+        updateVisibility();
+    });
+
+    document.querySelectorAll('.bubble').forEach(bubble => {
+        bubble.addEventListener('input', () => { adjustFontSize(bubble); triggerHistorySave(); });
+        bubble.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const text = e.clipboardData.getData('text/plain');
+            document.execCommand('insertText', false, text);
+            adjustFontSize(bubble);
+            saveState();
+        });
+    });
+
+    let historyTimer;
+    function triggerHistorySave() {
+        clearTimeout(historyTimer);
+        historyTimer = setTimeout(saveState, 500);
+    }
+
+    document.getElementById('auto-font-toggle').addEventListener('change', function(e) {
+        const manualControls = document.getElementById('manual-font-controls');
+        if (e.target.checked) {
+            manualControls.style.display = 'none';
+            document.querySelectorAll('.bubble').forEach(bubble => adjustFontSize(bubble));
+        } else {
+            manualControls.style.display = 'block';
+            document.querySelectorAll('.font-slider').forEach(slider => {
+                const targetId = slider.getAttribute('data-target');
+                document.getElementById(targetId).style.fontSize = slider.value + 'px';
+            });
+        }
+        saveState();
+    });
+
+    document.querySelectorAll('.font-slider').forEach(slider => {
+        slider.addEventListener('input', function(e) {
+            const targetId = this.getAttribute('data-target');
+            const numInput = this.parentElement.querySelector('.font-num');
+            numInput.value = this.value;
+            document.getElementById(targetId).style.fontSize = this.value + 'px';
+        });
+        slider.addEventListener('change', saveState);
+    });
+
+    document.querySelectorAll('.font-num').forEach(numInput => {
+        numInput.addEventListener('input', function(e) {
+            const targetId = this.getAttribute('data-target');
+            const slider = this.parentElement.querySelector('.font-slider');
+            slider.value = this.value;
+            document.getElementById(targetId).style.fontSize = this.value + 'px';
+            triggerHistorySave();
+        });
+    });
+
+    document.getElementById('font-input').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                const fontName = 'UploadedCustomFont';
+                const fontFace = new FontFace(fontName, ev.target.result);
+                try {
+                    const loadedFace = await fontFace.load();
+                    document.fonts.add(loadedFace);
+                    document.querySelectorAll('.bubble').forEach(bubble => {
+                        bubble.style.fontFamily = fontName;
+                        adjustFontSize(bubble);
+                    });
+                    saveState();
+                    alert('새로운 폰트가 적용되었습니다.');
+                } catch (err) { alert('폰트 로드 실패'); }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    });
+
+    function applyLogoFilters() {
+        const logoImg = document.getElementById('img-3');
+        const isShadow = document.getElementById('logo-shadow-toggle').checked;
+        const isBorder = document.getElementById('logo-border-toggle').checked;
+        const borderWidth = document.getElementById('logo-border-num').value;
+        const borderColor = document.getElementById('logo-border-color').value;
+        let filterList = [];
+        if (isBorder && borderWidth > 0) {
+             const w = borderWidth; const c = borderColor;
+             filterList.push(`drop-shadow(${w}px 0 0 ${c})`, `drop-shadow(-${w}px 0 0 ${c})`, `drop-shadow(0 ${w}px 0 ${c})`, `drop-shadow(0 -${w}px 0 ${c})`);
+             const d = (w * 0.7).toFixed(2);
+             if (d > 0) filterList.push(`drop-shadow(${d}px ${d}px 0 ${c})`, `drop-shadow(-${d}px -${d}px 0 ${c})`, `drop-shadow(${d}px -${d}px 0 ${c})`, `drop-shadow(-${d}px -${d}px 0 ${c})`);
+        }
+        if (isShadow) filterList.push('drop-shadow(5px 5px 2px rgba(0,0,0,0.9))');
+        logoImg.style.filter = filterList.length > 0 ? filterList.join(' ') : 'none';
+    }
+
+    function updateBorderControlsVisibility() {
+        const isBorder = document.getElementById('logo-border-toggle').checked;
+        document.getElementById('logo-border-controls').style.display = isBorder ? 'block' : 'none';
+        applyLogoFilters();
+        saveState();
+    }
+
+    document.getElementById('logo-shadow-toggle').addEventListener('change', () => { applyLogoFilters(); saveState(); });
+    document.getElementById('logo-border-toggle').addEventListener('change', updateBorderControlsVisibility);
+    document.getElementById('logo-border-width').addEventListener('input', function() { document.getElementById('logo-border-num').value = this.value; applyLogoFilters(); });
+    document.getElementById('logo-border-width').addEventListener('change', saveState);
+    document.getElementById('logo-border-num').addEventListener('input', function() { document.getElementById('logo-border-width').value = this.value; applyLogoFilters(); triggerHistorySave(); });
+    document.getElementById('logo-border-color').addEventListener('input', applyLogoFilters);
+    document.getElementById('logo-border-color').addEventListener('change', saveState);
+
+    document.getElementById('sgdb-search-btn').addEventListener('click', function() {
+        const term = document.getElementById('sgdb-input').value.trim();
+        if (term) window.open(`https://www.steamgriddb.com/search/grids?term=${encodeURIComponent(term)}`, '_blank');
+        else alert('검색어를 입력해주세요.');
+    });
+
+    const states = {
+        none: { x: 0, y: 0, scale: 1.0, rotate: 0, flip: 1, el: document.getElementById('meme-container') },
+        1: { x: 0, y: 0, scale: 1.0, rotate: 0, flip: 1, el: document.getElementById('img-1') },
+        2: { x: 0, y: 0, scale: 1.0, rotate: 0, flip: 1, el: document.getElementById('img-2') },
+        3: { x: 0, y: 0, scale: 1.0, rotate: 0, flip: 1, el: document.getElementById('img-3') }
+    };
+
+    function resetLayer() {
+        const id = getTargetId();
+        states[id].x = 0; states[id].y = 0; states[id].scale = 1.0; states[id].rotate = 0; states[id].flip = 1;
+        updateTransform(id); saveState();
+    }
+
+    function rotateLayer() {
+        const id = getTargetId();
+        states[id].rotate = (states[id].rotate + 90) % 360;
+        updateTransform(id); saveState();
+    }
+
+    function flipLayer() {
+        const id = getTargetId();
+        states[id].flip *= -1;
+        updateTransform(id); saveState();
+    }
+
+    let isDragging = false;
+    let startX, startY;
+    let initialDist = 0;
+    let startScale = 1.0;
+
+    function getTargetId() { return document.querySelector('input[name="target"]:checked').value; }
+
+    function updateVisibility() {
+        const targetId = getTargetId();
+        const bg = document.getElementById('background-layer');
+        const layers = [document.getElementById('layer-photo-1'), document.getElementById('layer-photo-2'), document.getElementById('layer-photo-3')];
+        const bubbles = document.querySelectorAll('.bubble');
+        if (targetId !== 'none') {
+            bg.style.opacity = '0.3';
+            layers.forEach((l, i) => l.style.opacity = (targetId === (i + 1).toString() ? '1' : '0'));
+            bubbles.forEach(b => b.style.opacity = '0');
+        } else {
+            bg.style.opacity = '1'; layers.forEach(l => l.style.opacity = '1'); bubbles.forEach(b => b.style.opacity = '1');
+        }
+    }
+
+    document.querySelectorAll('input[name="target"]').forEach(radio => radio.addEventListener('change', updateVisibility));
+
+    function updateTransform(id) {
+        const s = states[id];
+        if (!s || !s.el) return;
+        s.el.style.transform = `translate(${s.x}px, ${s.y}px) scale(${s.scale}) rotate(${s.rotate}deg) scaleX(${s.flip})`;
+    }
+
+    function setupUpload(id) {
+        document.getElementById(`img-input-${id}`).addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    states[id].el.src = ev.target.result;
+                    states[id].el.style.display = 'block';
+                    updateTransform(id);
+                    saveState();
+                    document.querySelector(`input[name="target"][value="${id}"]`).checked = true;
+                    updateVisibility();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+    setupUpload(1); setupUpload(2); setupUpload(3);
+
+    document.getElementById('mobile-mode-toggle').addEventListener('change', function(e) {
+        if (e.target.checked) {
+            document.body.classList.add('mobile-mode');
+            const autoScale = (window.innerWidth / 1100).toFixed(2);
+            states.none.scale = parseFloat(autoScale);
+        } else {
+            document.body.classList.remove('mobile-mode');
+            states.none.scale = 1.0;
+            states.none.x = 0; states.none.y = 0;
+        }
+        updateTransform('none');
+    });
+
+    const container = document.getElementById('meme-container');
+    container.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('bubble')) return;
+        const id = getTargetId();
+        if (id !== 'none' && !states[id].el.src) return;
+        isDragging = true;
+        startX = e.clientX - states[id].x; startY = e.clientY - states[id].y;
+    });
+
+    container.addEventListener('touchstart', (e) => {
+        if (e.target.classList.contains('bubble')) return;
+        const id = getTargetId();
+        if (id !== 'none' && !states[id].el.src) return;
+        if (e.touches.length === 1) {
+            isDragging = true;
+            startX = e.touches[0].clientX - states[id].x; startY = e.touches[0].clientY - states[id].y;
+        } else if (e.touches.length === 2) {
+            isDragging = false; 
+            initialDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            startScale = states[id].scale;
+        }
+    }, { passive: false });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const id = getTargetId();
+        states[id].x = e.clientX - startX; states[id].y = e.clientY - startY;
+        updateTransform(id);
+    });
+
+    window.addEventListener('touchmove', (e) => {
+        const id = getTargetId();
+        if (id !== 'none' && !states[id].el.src) return;
+        if (e.touches.length === 1 && isDragging) {
+            states[id].x = e.touches[0].clientX - startX; states[id].y = e.touches[0].clientY - startY;
+            updateTransform(id); if (e.cancelable) e.preventDefault();
+        } else if (e.touches.length === 2) {
+            const currentDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            
+            // [버그 수정 핵심] initialDist가 0이거나 설정되지 않은 상태에서 이동이 발생하면 현재 거리로 초기화하여 Infinity 발생 방지
+            if (!initialDist || initialDist === 0) {
+                initialDist = currentDist;
+                startScale = states[id].scale;
+            }
+
+            if (initialDist > 0) {
+                const zoomFactor = currentDist / initialDist;
+                states[id].scale = Math.max(0.05, Math.min(10, startScale * zoomFactor));
+                updateTransform(id);
+            }
+            if (e.cancelable) e.preventDefault();
+        }
+    }, { passive: false });
+
+    window.addEventListener('mouseup', () => { if(isDragging) saveState(); isDragging = false; });
+    window.addEventListener('touchend', () => { if(isDragging || initialDist !== 0) saveState(); isDragging = false; initialDist = 0; });
+
+    container.addEventListener('wheel', (e) => {
+        const id = getTargetId();
+        if (id !== 'none' && !states[id].el.src) return;
+        e.preventDefault();
+        states[id].scale = Math.max(0.05, states[id].scale + (e.deltaY < 0 ? 0.05 : -0.05));
+        updateTransform(id); triggerHistorySave();
+    }, { passive: false });
+
+    document.getElementById('save-btn').addEventListener('click', function() {
+        const bg = document.getElementById('background-layer');
+        const layers = [1, 2, 3].map(i => document.getElementById(`layer-photo-${i}`));
+        const bubbles = document.querySelectorAll('.bubble');
+        const isMobile = document.body.classList.contains('mobile-mode');
+        const prevScale = states.none.scale;
+        const prevX = states.none.x;
+        const prevY = states.none.y;
+        if(isMobile) {
+            states.none.scale = 1.0; states.none.x = 0; states.none.y = 0;
+            updateTransform('none');
+        }
+        bg.style.opacity = '1'; layers.forEach(l => l.style.opacity = '1'); bubbles.forEach(b => b.style.opacity = '1');
+        html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: null }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = '텐카_결과물.png'; link.href = canvas.toDataURL('image/png'); link.click();
+            if(isMobile) {
+                states.none.scale = prevScale; states.none.x = prevX; states.none.y = prevY;
+                updateTransform('none');
+            }
+            updateVisibility();
+        });
+    });
+</script>
+
+</body>
+</html>
