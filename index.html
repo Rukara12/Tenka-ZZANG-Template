@@ -532,9 +532,9 @@
             tBox.on('changed', () => { alignVerticalCenter(tBox); saveHistory(); });
         };
 
-        createText("텐카쨩 반박하는 내용···\n듣기 싫은 말···", 1, 1, 215, 330, 'text_tl', 41);
-        createText("나쨩 미안··· 잘 안 들려···\n아무튼 어쩌구 저쩌구 한데다\n이러저러하고 이래저래\n장점이 많아서 재밌는 게임이라는\n장황한 설명···", 1, 420, 230, 350, 'text_bl', 24);
-        createText("나쨩 이거 봐봐···!\n대충 어쩌구 저쩌구\n갓겜···!", 810, 1, 215, 410, 'text_tr', 44);
+        createText("텐카쨩 반박하는 내용··· 듣기 싫은 말···", 1, 1, 215, 330, 'text_tl', 41);
+        createText("나쨩 미안··· 잘 안 들려··· 아무튼 어쩌구 저쩌구 한데다 이러저러하고 이래저래 장점이 많아서 재밌는 게임이라는 장황한 설명···", 1, 420, 230, 350, 'text_bl', 24);
+        createText("나쨩 이거 봐봐···! 대충 어쩌구 저쩌구 갓겜···!", 810, 1, 215, 410, 'text_tr', 44);
 
         Object.keys(layers).forEach(k => { if(k.startsWith('text')) alignVerticalCenter(layers[k]); });
     }
