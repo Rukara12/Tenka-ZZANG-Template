@@ -704,7 +704,18 @@ select { cursor: pointer; }
 /* ── 좁은 화면 ────────────────────────────────────────── */
 
 @media (max-width: 860px) {
-  body { overflow: auto; }
+  /* 상단바가 가로로 조금이라도 넘치면 페이지 전체가 좌우로 스크롤되고,
+     터치 환경에서는 고무줄처럼 튕겨서 조작이 흔들린다. 넘칠 여지를 없애고,
+     혹시 넘치더라도 가로 스크롤·바운스는 막는다. */
+  html, body { overflow-x: hidden; overscroll-behavior-x: none; }
+  body { overflow-y: auto; }
+
+  .bar { gap: 8px; padding: 0 10px; }
+  .brand-name { display: none; }
+  .bar-actions { gap: 5px; min-width: 0; }
+  .ghost-btn, .primary-btn { padding: 7px 9px; }
+  .icon-btn { width: 30px; height: 30px; }
+
   .layout { flex-direction: column; height: auto; }
   .stage-area {
     padding: 12px;
