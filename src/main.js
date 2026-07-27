@@ -313,7 +313,10 @@ const ui = new UI(editor, {
 const interactor = new Interactor($('handles'), editor, {
   onSelect: (sel) => {
     ui.setSelection(sel);
-    dimTarget = sel?.type === 'slot' && sel.key !== 'logo' && editor.state.slots[sel.key] ? 1 : 0;
+    // 사진을 만지는 동안에는 템플릿 그림과 문구를 물려 둔다. 예전에는 로고만
+    // 빼놨는데, 그래서 로고를 고를 때만 화면이 그대로여서 다른 칸과 느낌이 달랐다.
+    // 로고는 그림 위에 얹히므로 그림을 물려도 로고 자체는 또렷하게 남는다.
+    dimTarget = sel?.type === 'slot' && editor.state.slots[sel.key] ? 1 : 0;
     if (textEditor.active && (!sel || sel.type !== 'text' || sel.key !== textEditor.key)) textEditor.finish();
   },
   onRequestUpload: requestUpload,

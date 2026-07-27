@@ -204,22 +204,28 @@ export class Interactor {
     const slot = SLOT_MAP[key];
     const r = slot.rect;
     const inRect = pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h;
+
     if (!slot.above) {
-      // 구멍 모양 그대로 — 사각형은 구멍보다 훨씬 넓어서 말풍선 바깥을 눌러도
-      // 말풍선이 잡혀 버린다.
+      // 구멍 모양 그대로. 사각형은 구멍보다 훨씬 넓어서, 사각형으로 잡으면
+      // 말풍선 바깥의 그림을 눌러도 말풍선이 잡혀 버린다.
       return holeMaskReady() ? insideHole(key, pt.x, pt.y) : inRect;
     }
 
     const p = this.state.slots[key];
     if (!p) {
+      // 로고가 비어 있을 때는 안내 띠만 — 사각형이 캐릭터를 통째로 덮을 만큼 넓다.
       const b = guideBandRect(key);
       return pt.x >= b.x && pt.x <= b.x + b.w && pt.y >= b.y && pt.y <= b.y + b.h;
     }
-    if (!inRect) return false; // 칸 밖은 어차피 잘려서 안 보인다
+    if (!inRect) return false; // 칸 밖은 잘려서 안 보인다
+    return this.pointInPhoto(pt, key);
+  }
 
-    const asset = getAsset(p.asset);
+  /** 회전을 걷어낸 좌표에서 사진 사각형 안인가. (잘려서 안 보이는 부분도 포함) */
+  pointInPhoto(pt, key) {
+    const p = this.state.slots[key];
+    const asset = getAsset(p?.asset);
     if (!asset) return false;
-    // 회전을 걷어낸 좌표에서 그림 사각형 안인지 본다
     const rad = ((p.angle || 0) * Math.PI) / 180;
     const cos = Math.cos(rad), sin = Math.sin(rad);
     const dx = pt.x - p.x, dy = pt.y - p.y;
@@ -244,6 +250,12 @@ export class Interactor {
     for (const t of [...TEXTS].reverse()) {
       if (this.textHit(pt, t.key)) return { type: 'text', key: t.key };
     }
+
+    // 이미 고른 사진은 잘려서 안 보이는 부분까지 통째로 잡힌다.
+    // 손잡이가 달린 테두리 안쪽을 눌렀는데 선택이 풀리면 납득하기 어렵다.
+    // 문구보다 뒤에 검사하므로 문구를 가로채지는 않는다.
+    if (sel?.type === 'slot' && this.pointInPhoto(pt, sel.key)) return sel;
+
     for (const key of ['logo', 'phone', 'bubble']) {
       if (this.slotHit(pt, key)) return { type: 'slot', key };
     }

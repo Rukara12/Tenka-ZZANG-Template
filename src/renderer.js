@@ -276,16 +276,8 @@ function drawCropGhost(ctx, slotKey, state, time, scale, overlay) {
     ctx.restore();
   }
 
-  // 로고는 그림 위에 얹히므로 사각형이 곧 경계다. 나머지 칸은 사각형이 구멍보다
-  // 한참 넓어서 선을 그으면 오히려 거짓말이 된다 — 짙게 보이는 부분이 곧 경계다.
-  if (slot.above) {
-    ctx.save();
-    ctx.setLineDash([]);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(70, 216, 232, 0.9)';
-    ctx.strokeRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2);
-    ctx.restore();
-  }
+  // 경계선은 어느 칸에도 긋지 않는다. 짙게 보이는 부분이 곧 경계다.
+  // 로고에만 사각형을 그리면 그 칸만 조작 느낌이 달라진다.
 }
 
 /** 문구가 칸을 넘쳤을 때 표시하는 테두리. */
