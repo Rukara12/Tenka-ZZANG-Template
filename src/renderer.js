@@ -5,7 +5,7 @@
 import { CANVAS, SLOTS, SLOT_MAP, TEXTS, TEXT_MAP, LIMITS } from './config.js';
 import { getAsset, frameAt, frameIndexAt } from './assets.js';
 import { drawText, fitSize, wrap } from './text.js';
-import { visibleRect, holesReady } from './mask.js';
+import { visibleRect, labelPoint, holesReady } from './mask.js';
 
 /** 가려지는 부분을 비춰 주는 정도. */
 const GHOST_ALPHA = 0.26;
@@ -293,6 +293,8 @@ function drawPlaceholders(ctx, state, hovered, scale, overlay) {
 
     if (useHoles && !slot.above) {
       // 구멍 모양만 칠한다 — overlay 알파를 빼내는 방식이라 모양이 정확하다.
+      // 여기에 사각 점선까지 두르면 칠한 모양과 어긋나 눈에 거슬리므로 두르지 않는다.
+      // 어디를 누르면 되는지는 칠해진 면과 hover 색으로 충분히 읽힌다.
       const dw = Math.max(1, Math.ceil(r.w * scale));
       const dh = Math.max(1, Math.ceil(r.h * scale));
       const g = scratch(dw, dh);
@@ -302,25 +304,28 @@ function drawPlaceholders(ctx, state, hovered, scale, overlay) {
       g.drawImage(overlay, -r.x * scale, -r.y * scale, CANVAS.w * scale, CANVAS.h * scale);
       ctx.drawImage(g.canvas, 0, 0, dw, dh, r.x, r.y, r.w, r.h);
     } else {
+      // 로고처럼 구멍이 없는 칸은 사각형이 곧 영역이라 점선을 두르는 게 맞다.
       ctx.fillStyle = fill;
       ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.setLineDash([9, 7]);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = active ? 'rgba(70,216,232,0.95)' : 'rgba(120,130,150,0.55)';
+      ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+      ctx.setLineDash([]);
     }
 
-    ctx.setLineDash([9, 7]);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = active ? 'rgba(70,216,232,0.95)' : 'rgba(120,130,150,0.55)';
-    ctx.strokeRect(vis.x + 1, vis.y + 1, vis.w - 2, vis.h - 2);
-
-    ctx.setLineDash([]);
+    // 문구는 구멍의 무게중심에 놓는다. 외접 사각형의 중심은 말풍선 꼬리 때문에
+    // 몸통보다 한참 아래로 밀린다.
+    const at = useHoles ? labelPoint(slot.key) : { x: r.x + r.w / 2, y: r.y + r.h / 2 };
     ctx.fillStyle = active ? '#1a7f8c' : '#7c8496';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const big = vis.w > 160 && vis.h > 90;
     ctx.font = `600 ${big ? 17 : 12}px Pretendard, system-ui, sans-serif`;
-    ctx.fillText(slot.label, vis.x + vis.w / 2, vis.y + vis.h / 2 - (big ? 10 : 0));
+    ctx.fillText(slot.label, at.x, at.y - (big ? 10 : 0));
     if (big) {
       ctx.font = '400 13px Pretendard, system-ui, sans-serif';
-      ctx.fillText('클릭하거나 사진을 끌어다 놓기', vis.x + vis.w / 2, vis.y + vis.h / 2 + 14);
+      ctx.fillText('클릭하거나 사진을 끌어다 놓기', at.x, at.y + 14);
     }
     ctx.restore();
   }

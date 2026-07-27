@@ -50,11 +50,14 @@ export function measureHoles(overlay) {
     const y0 = Math.max(0, r.y), y1 = Math.min(CANVAS.h, r.y + r.h);
 
     let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1, open = 0;
+    let sumX = 0, sumY = 0;
     for (let y = y0; y < y1; y++) {
       const row = y * CANVAS.w;
       for (let x = x0; x < x1; x++) {
         if (data[(row + x) * 4 + 3] >= ALPHA_CUT) continue;
         open++;
+        sumX += x;
+        sumY += y;
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -63,17 +66,46 @@ export function measureHoles(overlay) {
     }
     if (maxX < 0) continue; // 구멍이 없다 — 사각형을 그대로 쓴다
 
+    const box = { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
     measured.set(slot.key, {
-      x: minX,
-      y: minY,
-      w: maxX - minX + 1,
-      h: maxY - minY + 1,
+      ...box,
       ratio: open / Math.max(1, (x1 - x0) * (y1 - y0)),
+      label: pickLabelPoint(data, box, sumX / open, sumY / open),
     });
   }
 
   ready = measured.size > 0;
   return ready;
+}
+
+const isOpen = (data, x, y) =>
+  x >= 0 && y >= 0 && x < CANVAS.w && y < CANVAS.h &&
+  data[(y * CANVAS.w + x) * 4 + 3] < ALPHA_CUT;
+
+/**
+ * 안내 문구를 놓을 자리.
+ *
+ * 외접 사각형의 한가운데는 쓸 수 없다. 말풍선은 아래로 뻗은 꼬리 때문에 사각형이
+ * 세로로 늘어나 있어서, 그 중심이 실제 구멍의 몸통보다 74px 아래에 찍힌다.
+ * 무게중심이 훨씬 정직하고, 오목한 모양이라 무게중심이 구멍 밖으로 나가면
+ * 그때만 가장 가까운 구멍 픽셀로 물러난다.
+ */
+function pickLabelPoint(data, box, cx, cy) {
+  const rx = Math.round(cx), ry = Math.round(cy);
+  if (isOpen(data, rx, ry)) return { x: cx, y: cy };
+
+  const mx = Math.round(box.x + box.w / 2), my = Math.round(box.y + box.h / 2);
+  if (isOpen(data, mx, my)) return { x: mx, y: my };
+
+  let best = null, bestD = Infinity;
+  for (let y = box.y; y < box.y + box.h; y++) {
+    for (let x = box.x; x < box.x + box.w; x++) {
+      if (!isOpen(data, x, y)) continue;
+      const d = (x - cx) ** 2 + (y - cy) ** 2;
+      if (d < bestD) { bestD = d; best = { x, y }; }
+    }
+  }
+  return best || { x: mx, y: my };
 }
 
 /**
@@ -87,6 +119,14 @@ export function visibleRect(slotKey) {
 /** 칸 넓이 대비 실제로 비치는 비율. 못 쟀으면 1. */
 export function visibleRatio(slotKey) {
   return measured.get(slotKey)?.ratio ?? 1;
+}
+
+/** 안내 문구를 놓을 자리. 못 쟀으면 사각형 한가운데. */
+export function labelPoint(slotKey) {
+  const m = measured.get(slotKey);
+  if (m) return m.label;
+  const r = SLOT_MAP[slotKey].rect;
+  return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
 }
 
 export function holesReady() {

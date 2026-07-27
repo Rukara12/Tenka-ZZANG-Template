@@ -226,16 +226,19 @@ export class Interactor {
     }
 
     const target = this.hitTarget(pt);
-    this.select(target);
 
-    if (!target) { this.mode = null; return; }
-
-    if (target.type === 'slot' && !this.state.slots[target.key]) {
-      // 빈 구멍을 누르면 바로 사진 고르기
+    if (target?.type === 'slot' && !this.state.slots[target.key]) {
+      // 빈 구멍을 누르면 바로 사진 고르기.
+      // 고르지는 않는다 — 빈 칸을 선택해 봐야 손잡이만 뜨고, 그 손잡이는 구멍이
+      // 아니라 넉넉한 사각형을 두르고 있어서 없는 경계를 있는 것처럼 보여준다.
       this.mode = null;
+      this.select(null);
       this.hooks.onRequestUpload?.(target.key);
       return;
     }
+
+    this.select(target);
+    if (!target) { this.mode = null; return; }
 
     this.mode = 'move';
     const cur = target.type === 'slot' ? this.state.slots[target.key] : this.state.texts[target.key];
@@ -374,7 +377,8 @@ export class Interactor {
       this.select(t);
       this.hooks.onEditText?.(t.key);
     } else if (t?.type === 'slot') {
-      this.select(t);
+      if (this.state.slots[t.key]) this.select(t);
+      else this.select(null);
       this.hooks.onRequestUpload?.(t.key);
     }
   }
