@@ -21,6 +21,12 @@
   <div class="bar-status" id="bar-status" aria-live="polite"></div>
 
   <div class="bar-actions">
+    <div class="zoom" id="zoom-group" role="group" aria-label="보기 배율">
+      <button type="button" class="zoom-step" id="zoom-out" title="축소" aria-label="축소">−</button>
+      <button type="button" class="zoom-level" id="zoom-level" title="눌러서 창에 맞추기">맞춤</button>
+      <button type="button" class="zoom-step" id="zoom-in" title="확대 (Ctrl+휠)" aria-label="확대">+</button>
+    </div>
+
     <button type="button" class="icon-btn" id="btn-undo" title="되돌리기 (Ctrl+Z)" aria-label="되돌리기" disabled>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5L3 9l4 4M3.4 9H12a5 5 0 010 10H8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>

@@ -345,6 +345,10 @@ export class Interactor {
   }
 
   onWheel(e) {
+    // Ctrl+휠 과 트랙패드 핀치는 보기 배율 조절이다(main.js). 여기서 가로채면
+    // 화면을 키우려는 손짓이 사진 크기 조절로 먹혀 버린다.
+    if (e.ctrlKey || e.metaKey) return;
+
     const pt = this.toCanvas(e);
     const target = this.selection?.type === 'slot' ? this.selection : this.hitTarget(pt);
     if (!target || target.type !== 'slot' || !this.state.slots[target.key]) return;

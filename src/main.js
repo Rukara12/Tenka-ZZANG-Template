@@ -43,20 +43,108 @@ function loadOverlay() {
 
 const measure = document.createElement('canvas').getContext('2d');
 
-/* ---------- 화면 크기 ---------- */
+/* ---------- 화면 크기와 보기 배율 ---------- */
 
-function resize() {
-  const rect = stage.getBoundingClientRect();
+// 예전에는 캔버스 폭을 CSS 의 shrink-to-fit 에 맡겼는데, 그 기준이 캔버스의 고유
+// 픽셀 폭이라 1024 → 1024 로 스스로를 고정해 버렸다. 창이 아무리 커도 그대로였고,
+// 세로 여유는 아예 계산에 들어가지 않았다. 이제 여기서 픽셀로 정해 준다.
+
+const stageWrap = $('stage-wrap');
+const stageArea = document.querySelector('.stage-area');
+const stageTip = $('stage-tip');
+
+const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.25, 1.5, 2, 2.5, 3];
+const ZOOM_MIN = ZOOM_STEPS[0];
+const ZOOM_MAX = ZOOM_STEPS[ZOOM_STEPS.length - 1];
+const MAX_RENDER_SCALE = 3; // 확대했을 때도 또렷하도록. 3배면 3072x2295.
+
+let viewZoom = 0; // 0 이면 '맞춤'
+let fitZoom = 1;
+
+// 좁은 화면에서는 .layout 이 세로로 쌓이면서 .stage-area 높이가 '내용에 맞춤'이 된다.
+// 그 높이로 배율을 계산하면 스스로를 물고 도는 순환이 되므로 가로만 본다.
+const narrow = globalThis.matchMedia?.('(max-width: 860px)');
+
+/** 지금 창에서 캔버스가 온전히 들어가는 최대 배율. 가로·세로를 모두 본다. */
+function computeFit() {
+  if (!stageArea) return 1;
+  const cs = getComputedStyle(stageArea);
+  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+  const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const gap = parseFloat(cs.rowGap) || 0;
+  // 안내 문구는 좁은 화면에서 숨겨진다 — 보일 때만 자리를 뺀다.
+  const tipH = stageTip && stageTip.offsetParent !== null ? stageTip.offsetHeight + gap : 0;
+
+  const availW = stageArea.clientWidth - padX;
+  if (!(availW > 0)) return fitZoom || 1;
+  if (narrow?.matches) return Math.max(0.1, availW / CANVAS.w);
+
+  const availH = stageArea.clientHeight - padY - tipH;
+  if (!(availH > 0)) return Math.max(0.1, availW / CANVAS.w);
+  return Math.max(0.1, Math.min(availW / CANVAS.w, availH / CANVAS.h));
+}
+
+function applyView() {
+  fitZoom = computeFit();
+  const z = viewZoom || fitZoom;
+
+  stageWrap.style.width = `${Math.max(200, Math.round(CANVAS.w * z))}px`;
+
+  // 표시 크기가 정해진 다음에 백업 캔버스 해상도를 맞춘다.
   const dpr = Math.min(globalThis.devicePixelRatio || 1, 2);
-  const want = Math.min(2, Math.max(1, (rect.width * dpr) / CANVAS.w));
+  const want = Math.min(MAX_RENDER_SCALE, Math.max(1, z * dpr));
   const next = Math.round(want * 4) / 4;
   if (next !== renderScale) {
     renderScale = next;
     stage.width = Math.round(CANVAS.w * renderScale);
     stage.height = Math.round(CANVAS.h * renderScale);
   }
+
+  syncZoomUi(z);
   dirty = true;
   textEditor?.layout();
+}
+
+function resize() { applyView(); }
+
+/**
+ * @param {number} z 0 이면 맞춤
+ * @param {{x:number,y:number}} [anchor] 확대 후에도 제자리에 둘 지점 (스테이지 안 0~1)
+ */
+function setZoom(z, anchor) {
+  const prevW = stageWrap.offsetWidth;
+  const prevH = stageWrap.offsetHeight;
+  const sl = stageArea.scrollLeft;
+  const st = stageArea.scrollTop;
+
+  viewZoom = z ? Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z)) : 0;
+  applyView();
+
+  if (anchor && prevW > 0) {
+    stageArea.scrollLeft = sl + (stageWrap.offsetWidth - prevW) * anchor.x;
+    stageArea.scrollTop = st + (stageWrap.offsetHeight - prevH) * anchor.y;
+  }
+}
+
+function stepZoom(dir, anchor) {
+  const cur = viewZoom || fitZoom;
+  const next = dir > 0
+    ? ZOOM_STEPS.find((s) => s > cur + 1e-4) ?? ZOOM_MAX
+    : [...ZOOM_STEPS].reverse().find((s) => s < cur - 1e-4) ?? ZOOM_MIN;
+  setZoom(next, anchor);
+}
+
+function syncZoomUi(z) {
+  $('zoom-level').textContent = viewZoom ? `${Math.round(z * 100)}%` : '맞춤';
+  $('zoom-out').disabled = z <= ZOOM_MIN + 1e-4;
+  $('zoom-in').disabled = z >= ZOOM_MAX - 1e-4;
+}
+
+function anchorFrom(e) {
+  const r = stageWrap.getBoundingClientRect();
+  if (!r.width || !r.height) return null;
+  const clamp01 = (v) => Math.min(1, Math.max(0, v));
+  return { x: clamp01((e.clientX - r.left) / r.width), y: clamp01((e.clientY - r.top) / r.height) };
 }
 
 /* ---------- 렌더 루프 ---------- */
@@ -295,6 +383,19 @@ $('font-input').addEventListener('change', async (e) => {
     toast('이 글꼴 파일은 읽지 못했습니다.', 'bad');
   }
 });
+
+$('zoom-in').addEventListener('click', () => stepZoom(1));
+$('zoom-out').addEventListener('click', () => stepZoom(-1));
+$('zoom-level').addEventListener('click', () => setZoom(0));
+
+// Ctrl+휠(트랙패드 핀치 포함)은 브라우저 확대가 아니라 캔버스 배율로 쓴다.
+// 캔버스 편집기에서 익숙한 동작이고, 사진 크기 조절(그냥 휠)과도 겹치지 않는다.
+// 브라우저 확대가 필요하면 Ctrl +/- 키는 그대로 살아 있다.
+stageArea.addEventListener('wheel', (e) => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  e.preventDefault();
+  setZoom((viewZoom || fitZoom) * Math.pow(1.0016, -e.deltaY), anchorFrom(e));
+}, { passive: false });
 
 $('btn-undo').addEventListener('click', () => { editor.undo(); afterHistory(); });
 $('btn-redo').addEventListener('click', () => { editor.redo(); afterHistory(); });

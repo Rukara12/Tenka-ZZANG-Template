@@ -125,6 +125,41 @@ button, input, select, textarea { font: inherit; color: inherit; }
   flex: none;
 }
 
+/* ── 배율 ─────────────────────────────────────────────── */
+
+.zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--ink-600);
+  border-radius: var(--r);
+  background: var(--ink-750);
+  flex: none;
+}
+
+.zoom button {
+  border: 0;
+  background: transparent;
+  color: var(--fg-mute);
+  cursor: pointer;
+  border-radius: 5px;
+  height: 26px;
+  transition: background .13s, color .13s;
+}
+
+.zoom button:hover:not(:disabled) { background: var(--ink-700); color: var(--fg); }
+.zoom button:disabled { opacity: .35; cursor: default; }
+
+.zoom-step { width: 26px; font-size: 15px; line-height: 1; }
+
+.zoom-level {
+  min-width: 58px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── 버튼 ─────────────────────────────────────────────── */
 
 .icon-btn,
@@ -203,7 +238,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* 확대해서 캔버스가 넘칠 때, 그냥 center 면 왼쪽·위쪽이 스크롤로 닿지 않는다. */
+  align-items: safe center;
   justify-content: center;
+  justify-content: safe center;
   gap: 14px;
   padding: 22px;
   background:
@@ -211,12 +249,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
   overflow: auto;
 }
 
+/* 폭은 main.js 가 픽셀로 지정한다. 창에 들어가는 최대 크기(맞춤) 또는 지정 배율.
+   flex:none 이 없으면 세로로 눌려서 .handles(inset:0)까지 같이 찌그러진다. */
 .stage {
   position: relative;
   line-height: 0;
   border-radius: 3px;
   box-shadow: 0 18px 44px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .06);
-  max-width: 100%;
+  flex: none;
 }
 
 #stage {
@@ -652,6 +692,15 @@ select { cursor: pointer; }
   font-weight: 600;
 }
 
+/* ── 낮은 화면 ────────────────────────────────────────── */
+
+/* 노트북처럼 세로가 짧으면 캔버스가 세로에 먼저 걸린다. 여백과 안내 문구가
+   그대로 배율을 깎아먹으므로 이 구간에서는 둘 다 줄인다. */
+@media (max-height: 820px) {
+  .stage-area { padding: 10px; gap: 8px; }
+  .stage-tip { display: none; }
+}
+
 /* ── 좁은 화면 ────────────────────────────────────────── */
 
 @media (max-width: 860px) {
@@ -671,6 +720,8 @@ select { cursor: pointer; }
   }
   .insp.tools { margin-top: 0; }
   .stage-tip { display: none; }
+  /* 좁은 화면은 가로에 맞춰 꽉 차므로 배율 조절이 의미가 없다. 상단바도 비좁다. */
+  .zoom { display: none; }
   .bar-status { display: none; }
   .row-3 { grid-template-columns: 1fr 1fr; }
   .toasts { bottom: 14px; }
