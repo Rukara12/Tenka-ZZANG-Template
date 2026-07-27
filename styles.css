@@ -45,6 +45,10 @@
 
 * { box-sizing: border-box; }
 
+/* 작성자 스타일은 브라우저 기본 [hidden]{display:none} 을 이깁니다.
+   .drop-veil 처럼 display 를 지정한 요소에 hidden 을 걸어도 안 사라지므로 못박아 둡니다. */
+[hidden] { display: none !important; }
+
 html, body {
   height: 100%;
   margin: 0;

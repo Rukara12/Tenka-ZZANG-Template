@@ -209,7 +209,7 @@ const interactor = new Interactor($('handles'), editor, {
   },
   onRequestUpload: requestUpload,
   onEditText: (key) => textEditor.start(key),
-  onChange: () => { markDirty(); ui.sync(); },
+  onChange: () => { markDirty(); queueSync(); },
 });
 
 const textEditor = new TextEditor(
@@ -217,7 +217,7 @@ const textEditor = new TextEditor(
   editor,
   () => stage.getBoundingClientRect().width / CANVAS.w,
   {
-    onChange: () => { markDirty(); ui.sync(); },
+    onChange: () => { markDirty(); queueSync(); },
     onDone: () => markDirty(),
     measureCtx: () => measure,
   },
@@ -247,7 +247,16 @@ function refresh() {
   markDirty();
 }
 
-editor.addEventListener('change', () => { markDirty(); scheduleSave(); });
+// 상태가 바뀌면 패널도 따라와야 한다. 드래그 중에는 매 프레임 호출되므로
+// 프레임당 한 번으로 묶어 DOM 쓰기를 제한한다.
+let syncQueued = false;
+function queueSync() {
+  if (syncQueued) return;
+  syncQueued = true;
+  requestAnimationFrame(() => { syncQueued = false; ui.sync(); });
+}
+
+editor.addEventListener('change', () => { markDirty(); queueSync(); scheduleSave(); });
 editor.addEventListener('history', (e) => ui.setHistory(e.detail));
 
 /* ---------- 전역 입력 ---------- */
@@ -301,7 +310,7 @@ function afterHistory() {
 }
 
 window.addEventListener('keydown', (e) => {
-  const typing = e.target.matches('input, textarea, select');
+  const typing = !!e.target?.matches?.('input, textarea, select');
   const mod = e.ctrlKey || e.metaKey;
 
   if (mod && e.key.toLowerCase() === 'z') {
