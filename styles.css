@@ -45,6 +45,12 @@
 
 * { box-sizing: border-box; }
 
+/* hidden 속성은 브라우저 기본 스타일시트의 display:none 으로 동작한다. 그래서
+   같은 요소에 클래스로 display 를 주면(.drop-veil 의 grid, .notice 의 flex 등)
+   그쪽이 이겨서 hidden 이 통째로 무시된다. JS 는 전부 el.hidden 으로 여닫으므로
+   여기서 한 번 못박아 둔다. */
+[hidden] { display: none !important; }
+
 html, body {
   height: 100%;
   margin: 0;
