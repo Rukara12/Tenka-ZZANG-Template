@@ -88,7 +88,9 @@ function applyView() {
   fitZoom = computeFit();
   const z = viewZoom || fitZoom;
 
-  stageWrap.style.width = `${Math.max(200, Math.round(CANVAS.w * z))}px`;
+  // floor 로 깎는다. 반올림하면 '맞춤'일 때 폭이 남는 공간보다 0.5px 커질 수 있고,
+  // 그 0.5px 때문에 가로 스크롤이 생겨 터치 화면이 좌우로 흔들린다.
+  stageWrap.style.width = `${Math.max(200, Math.floor(CANVAS.w * z))}px`;
 
   // 표시 크기가 정해진 다음에 백업 캔버스 해상도를 맞춘다.
   const dpr = Math.min(globalThis.devicePixelRatio || 1, 2);
