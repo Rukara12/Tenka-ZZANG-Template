@@ -1,1094 +1,253 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>텐카 템플릿 에디터</title>
-    <style>
-        /* [1] 웹폰트 정의 */
-        @font-face {
-            font-family: 'PyeongtaekSunset';
-            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408@1.0/PTNoeulL.woff2') format('woff2');
-            font-weight: 300;
-            font-display: swap;
-        }
-        @font-face {
-            font-family: 'PyeongtaekSunset';
-            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408@1.0/PTNoeulB.woff2') format('woff2');
-            font-weight: 700;
-            font-display: swap;
-        }
-
-        /* [2] 레이아웃 스타일 */
-        body { 
-            margin: 0; padding: 0; 
-            font-family: 'PyeongtaekSunset', sans-serif; 
-            background-color: #e9ecef;
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        body.mobile-mode {
-            flex-direction: column;
-            overflow-y: auto;
-            height: auto;
-        }
-
-        /* 사이드바 */
-        .sidebar {
-            width: 300px;
-            background: #ffffff;
-            border-right: 1px solid #dee2e6;
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-            overflow-y: auto;
-            z-index: 10;
-        }
-        .sidebar.right {
-            border-right: none;
-            border-left: 1px solid #dee2e6;
-        }
-
-        body.mobile-mode .sidebar {
-            width: 100%;
-            border: none;
-            order: 2;
-            box-sizing: border-box;
-            overflow-y: visible;
-        }
-
-        /* 메인 작업 영역 */
-        .main-content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: auto;
-            padding: 40px;
-            background-color: #ced4da;
-            position: relative;
-        }
-
-        body.mobile-mode .main-content {
-            order: 1;
-            padding: 20px 0;
-            min-height: 450px;
-            display: block;
-            text-align: center;
-        }
-
-        /* 컨트롤 그룹 및 아코디언 */
-        .control-section {
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #f1f3f5;
-        }
-        .section-title {
-            font-size: 15px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #495057;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-            user-select: none;
-        }
-        .section-content {
-            display: block;
-        }
-        .section-content.collapsed {
-            display: none;
-        }
-        .toggle-arrow {
-            font-size: 10px;
-            transition: transform 0.2s;
-        }
-
-        /* 초기화 버튼 스타일 및 정렬 */
-        .reset-mini-btn {
-            background: #f1f3f5;
-            border: 1px solid #dee2e6;
-            color: #868e96;
-            font-size: 11px;
-            cursor: pointer;
-            padding: 2px 5px;
-            margin-left: 8px;
-            border-radius: 4px;
-            display: inline-flex;
-            align-items: center;
-            transition: all 0.2s;
-            vertical-align: middle;
-        }
-        .reset-mini-btn:hover { 
-            background: #e9ecef;
-            color: #dc3545;
-            border-color: #dc3545;
-        }
-
-        .label-with-reset {
-            display: flex;
-            align-items: center;
-            font-size: 13px;
-        }
-
-        /* 캔버스 컨테이너 */
-        .canvas-container-wrapper {
-            position: relative;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            background-color: #fff;
-            transform-origin: center top;
-            transition: transform 0.3s ease;
-            display: inline-block;
-        }
-
-        /* 버튼 및 입력창 */
-        button:not(.reset-mini-btn) { 
-            width: 100%;
-            padding: 10px; 
-            font-size: 14px; 
-            cursor: pointer; 
-            border-radius: 6px; 
-            border: 1px solid #ced4da; 
-            font-weight: bold;
-            margin-bottom: 8px;
-            transition: all 0.2s;
-        }
-        button:hover { opacity: 0.8; }
-        .save-btn { background: #28a745; color: white; border: none; font-size: 16px; padding: 15px; margin-top: 10px; }
-        .upload-btn { background: #007bff; color: white; border: none; }
-        .font-btn { background: #6c757d; color: white; border: none; }
-        .history-btn { background: #6c757d; color: white; border: none; font-size: 12px; padding: 8px; flex: 1; }
-        .issue-btn { background: #ffc107; color: #212529; border: none; margin-bottom: 5px; }
-
-        .selector-box {
-            background: #f8f9fa;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #e9ecef;
-        }
-        .selector-box label {
-            display: block;
-            margin: 8px 0;
-            cursor: pointer;
-            font-size: 14px;
-        }
-
-        .hint { color: #868e96; font-size: 12px; margin-top: 5px; line-height: 1.4; }
-        
-        /* 폰트 컨트롤 */
-        .slider-item { margin: 8px 0; display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
-        .slider-item input[type="range"] { width: 90px; }
-        .num-input { width: 50px; padding: 4px; border: 1px solid #ced4da; border-radius: 4px; font-size: 12px; text-align: center; }
-
-        /* 로딩 오버레이 */
-        #loading-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7); color: white; z-index: 9999;
-            display: none; justify-content: center; align-items: center; flex-direction: column;
-        }
-        .spinner {
-            border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%;
-            width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>텐카 템플릿 에디터</title>
+<meta name="description" content="게임 추천 짤방을 만드는 편집기. 사진과 움짤을 얹고 문구를 고쳐 GIF·PNG·영상으로 저장합니다.">
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<div id="loading-overlay">
-    <div class="spinner"></div>
-    <div id="loading-text">처리 중입니다...</div>
-</div>
+<header class="bar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">텐카 템플릿</span>
+  </div>
 
-<aside class="sidebar">
-    <div class="control-section">
-        <div class="section-title" onclick="toggleSection(this)">
-            <span>🖼️ 이미지 업로드 (GIF 지원)</span>
-            <span class="toggle-arrow">▼</span>
-        </div>
-        <div class="section-content">
-            <button class="upload-btn" onclick="document.getElementById('img-input-1').click();">말풍선 사진</button>
-            <button class="upload-btn" onclick="document.getElementById('img-input-2').click();">핸드폰 사진</button>
-            <button class="upload-btn" onclick="document.getElementById('img-input-3').click();">로고 사진</button>
-            <input type="file" id="img-input-1" accept="image/*" style="display:none" onclick="this.value=null">
-            <input type="file" id="img-input-2" accept="image/*" style="display:none" onclick="this.value=null">
-            <input type="file" id="img-input-3" accept="image/*" style="display:none" onclick="this.value=null">
-        </div>
-    </div>
+  <div class="bar-status" id="bar-status" aria-live="polite"></div>
 
-    <div class="control-section">
-        <div class="section-title" onclick="toggleSection(this)">
-            <span>🕹️ 조작 대상</span>
-            <span class="toggle-arrow">▼</span>
-        </div>
-        <div class="section-content">
-            <div class="selector-box">
-                <label><input type="radio" name="target" value="none" checked> 선택 없음</label>
-                <label><input type="radio" name="target" value="img1"> 말풍선 사진</label>
-                <label><input type="radio" name="target" value="img2"> 핸드폰 사진</label>
-                <label><input type="radio" name="target" value="img3"> 로고 사진</label>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 10px;">
-                    <button onclick="resetActiveObject()" style="font-size: 12px; padding: 5px;">초기화</button>
-                    <button onclick="rotateActiveObject()" style="font-size: 12px; padding: 5px;">회전</button>
-                    <button onclick="flipActiveObject()" style="font-size: 12px; padding: 5px;">반전</button>
-                    <button onclick="deleteActiveObject()" style="font-size: 12px; padding: 5px; background: #dc3545; color: white; border: none;">삭제</button>
-                </div>
-            </div>
-        </div>
-    </div>
+  <div class="bar-actions">
+    <button type="button" class="icon-btn" id="btn-undo" title="되돌리기 (Ctrl+Z)" aria-label="되돌리기" disabled>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5L3 9l4 4M3.4 9H12a5 5 0 010 10H8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button type="button" class="icon-btn" id="btn-redo" title="다시하기 (Ctrl+Shift+Z)" aria-label="다시하기" disabled>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13 5l4 4-4 4M16.6 9H8a5 5 0 000 10h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button type="button" class="ghost-btn" id="btn-reset">처음부터</button>
+    <button type="button" class="primary-btn" id="btn-export">내보내기</button>
+  </div>
+</header>
 
-    <div class="control-section">
-        <div class="section-title" onclick="toggleSection(this)">
-            <span>🔍 SteamGridDB 검색</span>
-            <span class="toggle-arrow">▼</span>
-        </div>
-        <div class="section-content">
-            <input type="text" id="sgdb-input" placeholder="게임명 입력" style="width: 100%; padding: 8px; margin-bottom: 5px; box-sizing: border-box;">
-            <button class="upload-btn" id="sgdb-search-btn" style="background:#495057">검색하기</button>
-        </div>
+<main class="layout">
+  <div class="stage-area">
+    <div class="stage" id="stage-wrap">
+      <canvas id="stage" width="1024" height="765" aria-label="편집 중인 짤방"></canvas>
+      <canvas id="handles" class="handles"></canvas>
     </div>
+    <p class="stage-tip" id="stage-tip">빈 칸을 눌러 사진을 넣고, 문구는 두 번 눌러 고칩니다. 스크린샷은 Ctrl+V 로 바로 붙여넣을 수 있습니다.</p>
+  </div>
 
-    <div class="control-section">
-        <div class="section-title" onclick="toggleSection(this)">
-            <span>📊 움짤 정보 (측정됨)</span>
-            <span class="toggle-arrow">▼</span>
-        </div>
-        <div class="section-content">
-            <div id="detected-fps-info" style="font-size: 13px; color: #495057; line-height: 1.6;">
-                측정된 FPS: -
-            </div>
-        </div>
-    </div>
-</aside>
+  <aside class="panel" id="panel" aria-label="설정">
 
-<main class="main-content" id="drop-zone">
-    <div class="canvas-container-wrapper" id="canvas-wrapper">
-        <canvas id="c" width="1024" height="765"></canvas>
-    </div>
+    <!-- 아무것도 선택하지 않았을 때 -->
+    <section class="insp" id="insp-none">
+      <div class="insp-title">구성</div>
+      <div class="slot-list" id="slot-list"></div>
+
+      <div class="insp-title mt">문구</div>
+      <div class="text-list" id="text-list"></div>
+    </section>
+
+    <!-- 사진 슬롯 선택 -->
+    <section class="insp" id="insp-slot" hidden>
+      <button type="button" class="back-btn" data-deselect>← 전체 보기</button>
+      <div class="insp-title" id="slot-title">말풍선</div>
+
+      <div class="row-2">
+        <button type="button" class="ghost-btn" id="slot-replace">사진 바꾸기</button>
+        <button type="button" class="ghost-btn danger" id="slot-remove">비우기</button>
+      </div>
+
+      <label class="field">
+        <span class="field-label">크기 <b id="slot-scale-val">100%</b></span>
+        <input type="range" id="slot-scale" min="2" max="600" step="1" value="100">
+      </label>
+
+      <label class="field">
+        <span class="field-label">회전 <b id="slot-angle-val">0°</b></span>
+        <input type="range" id="slot-angle" min="0" max="359" step="1" value="0">
+      </label>
+
+      <div class="row-3">
+        <button type="button" class="ghost-btn" id="slot-rot90">90° 돌리기</button>
+        <button type="button" class="ghost-btn" id="slot-flip">좌우 뒤집기</button>
+        <button type="button" class="ghost-btn" id="slot-fit">칸에 맞추기</button>
+      </div>
+
+      <div class="meta" id="slot-meta"></div>
+
+      <!-- 로고 전용 -->
+      <div id="logo-effects" hidden>
+        <div class="insp-title mt">로고 효과</div>
+
+        <label class="switch">
+          <input type="checkbox" id="fx-outline"><span>테두리</span>
+        </label>
+        <div class="sub" id="fx-outline-body" hidden>
+          <label class="field">
+            <span class="field-label">두께 <b id="fx-outline-w-val">2.5</b></span>
+            <input type="range" id="fx-outline-w" min="0" max="20" step="0.5" value="2.5">
+          </label>
+          <label class="field inline">
+            <span class="field-label">색</span>
+            <input type="color" id="fx-outline-color" value="#000000">
+          </label>
+        </div>
+
+        <label class="switch">
+          <input type="checkbox" id="fx-shadow"><span>그림자</span>
+        </label>
+        <div class="sub" id="fx-shadow-body" hidden>
+          <label class="field">
+            <span class="field-label">번짐 <b id="fx-shadow-blur-val">10</b></span>
+            <input type="range" id="fx-shadow-blur" min="0" max="60" step="1" value="10">
+          </label>
+          <label class="field">
+            <span class="field-label">가로 <b id="fx-shadow-dx-val">5</b></span>
+            <input type="range" id="fx-shadow-dx" min="-60" max="60" step="1" value="5">
+          </label>
+          <label class="field">
+            <span class="field-label">세로 <b id="fx-shadow-dy-val">5</b></span>
+            <input type="range" id="fx-shadow-dy" min="-60" max="60" step="1" value="5">
+          </label>
+          <label class="field inline">
+            <span class="field-label">색</span>
+            <input type="color" id="fx-shadow-color" value="#000000">
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- 문구 선택 -->
+    <section class="insp" id="insp-text" hidden>
+      <button type="button" class="back-btn" data-deselect>← 전체 보기</button>
+      <div class="insp-title" id="text-title">좌상단</div>
+
+      <button type="button" class="ghost-btn wide" id="text-edit">문구 고치기</button>
+
+      <label class="switch">
+        <input type="checkbox" id="text-auto"><span>칸에 맞춰 크기 자동 조절</span>
+      </label>
+
+      <label class="field" id="text-size-field">
+        <span class="field-label">글자 크기 <b id="text-size-val">41</b></span>
+        <input type="range" id="text-size" min="8" max="200" step="1" value="41">
+      </label>
+
+      <label class="field">
+        <span class="field-label">칸 너비 <b id="text-width-val">215</b></span>
+        <input type="range" id="text-width" min="40" max="1024" step="1" value="215">
+      </label>
+
+      <label class="field inline">
+        <span class="field-label">글자 색</span>
+        <input type="color" id="text-color" value="#000000">
+      </label>
+
+      <button type="button" class="ghost-btn wide" id="text-reset">위치·크기 되돌리기</button>
+      <div class="meta" id="text-meta"></div>
+    </section>
+
+    <!-- 항상 보이는 도구 -->
+    <section class="insp tools">
+      <div class="insp-title">도구</div>
+
+      <div class="search-row">
+        <input type="search" id="sgdb-input" placeholder="게임 이름으로 로고 찾기" autocomplete="off">
+        <button type="button" class="ghost-btn" id="sgdb-go">검색</button>
+      </div>
+
+      <button type="button" class="ghost-btn wide" id="font-pick">글꼴 바꾸기</button>
+      <div class="meta" id="font-meta">평택 노을체</div>
+
+      <div class="source-info" id="source-info" hidden></div>
+
+      <div class="links">
+        <a href="https://Rukara12.github.io/Tenka-ZZANG-Template/old/old.html" target="_blank" rel="noopener">구버전 에디터</a>
+        <a href="https://github.com/Rukara12/Tenka-ZZANG-Template" target="_blank" rel="noopener">문제 알리기</a>
+      </div>
+    </section>
+  </aside>
 </main>
 
-<aside class="sidebar right">
-    <div class="control-section">
-        <div class="section-title" onclick="toggleSection(this)">
-            <span>⚙️ 환경 설정</span>
-            <span class="toggle-arrow">▼</span>
-        </div>
-        <div class="section-content">
-            <label style="cursor:pointer; font-size: 14px; font-weight: bold; color: #007bff;">
-                <input type="checkbox" id="mobile-mode-toggle"> 모바일 최적화 UI 모드
-            </label>
-        </div>
+<!-- 내보내기 -->
+<dialog id="export-dialog" class="dialog">
+  <form method="dialog" class="dialog-inner">
+    <h2 class="dialog-title">내보내기</h2>
+
+    <div class="seg" id="fmt-seg" role="radiogroup" aria-label="형식">
+      <button type="button" data-fmt="gif" class="seg-btn is-on">GIF</button>
+      <button type="button" data-fmt="png" class="seg-btn">PNG</button>
+      <button type="button" data-fmt="video" class="seg-btn">영상</button>
     </div>
 
-    <div class="control-section">
-        <div class="section-title" onclick="toggleSection(this)">
-            <span>🔤 폰트 설정</span>
-            <span class="toggle-arrow">▼</span>
-        </div>
-        <div class="section-content">
-            <button class="font-btn" onclick="document.getElementById('font-input').click();">폰트 변경</button>
-            <input type="file" id="font-input" accept=".ttf, .otf, .woff, .woff2" style="display:none" onclick="this.value=null">
-            
-            <div id="manual-font-controls" style="margin-top: 10px;">
-                <div class="slider-item">
-                    <div class="label-with-reset">좌상단 <button class="reset-mini-btn" onclick="resetInputValue('text_tl', 41, true)">↺</button></div>
-                    <input type="range" class="font-slider" data-id="text_tl" min="10" max="150" value="41">
-                    <input type="number" class="num-input font-num" data-id="text_tl" value="41">
-                </div>
-                <div class="slider-item">
-                    <div class="label-with-reset">좌하단 <button class="reset-mini-btn" onclick="resetInputValue('text_bl', 24, true)">↺</button></div>
-                    <input type="range" class="font-slider" data-id="text_bl" min="10" max="150" value="24">
-                    <input type="number" class="num-input font-num" data-id="text_bl" value="24">
-                </div>
-                <div class="slider-item">
-                    <div class="label-with-reset">우상단 <button class="reset-mini-btn" onclick="resetInputValue('text_tr', 44, true)">↺</button></div>
-                    <input type="range" class="font-slider" data-id="text_tr" min="10" max="150" value="44">
-                    <input type="number" class="num-input font-num" data-id="text_tr" value="44">
-                </div>
-            </div>
-        </div>
+    <label class="field inline">
+      <span class="field-label">크기</span>
+      <select id="ex-scale">
+        <option value="0.5">0.5배 (512×383)</option>
+        <option value="0.75">0.75배 (768×574)</option>
+        <option value="1" selected>1배 (1024×765)</option>
+        <option value="1.5">1.5배 (1536×1148)</option>
+        <option value="2">2배 (2048×1530)</option>
+      </select>
+    </label>
+
+    <div id="motion-fields">
+      <label class="field inline">
+        <span class="field-label">초당 프레임</span>
+        <select id="ex-fps">
+          <option value="0" selected>원본 속도</option>
+          <option value="10">10</option>
+          <option value="15">15</option>
+          <option value="20">20</option>
+          <option value="25">25</option>
+          <option value="30">30</option>
+        </select>
+      </label>
+      <label class="field inline">
+        <span class="field-label">재생 속도</span>
+        <select id="ex-speed">
+          <option value="0.5">0.5배</option>
+          <option value="1" selected>1배</option>
+          <option value="1.5">1.5배</option>
+          <option value="2">2배</option>
+        </select>
+      </label>
+      <label class="field inline" id="ex-colors-field">
+        <span class="field-label">색 수</span>
+        <select id="ex-colors">
+          <option value="64">64색 (가장 가벼움)</option>
+          <option value="128">128색</option>
+          <option value="255" selected>255색 (가장 선명)</option>
+        </select>
+      </label>
     </div>
 
-    <div class="control-section">
-        <div class="section-title" onclick="toggleSection(this)">
-            <span>✨ 효과 설정</span>
-            <span class="toggle-arrow">▼</span>
-        </div>
-        <div class="section-content">
-            <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                <label style="cursor:pointer; font-size: 14px; display: flex; align-items: center;">
-                    <input type="checkbox" id="logo-shadow-toggle" style="margin-right: 5px;"> 로고 그림자 설정
-                </label>
-                <button class="reset-mini-btn" onclick="resetShadow()">↺</button>
-            </div>
-            <div id="logo-shadow-controls" style="display: none; margin-top: 10px; font-size: 13px;">
-                <div class="slider-item">블러: <input type="range" id="logo-shadow-blur" min="0" max="50" value="10"></div>
-                <div class="slider-item">X축: <input type="range" id="logo-shadow-offsetx" min="-50" max="50" value="5"></div>
-                <div class="slider-item">Y축: <input type="range" id="logo-shadow-offsety" min="-50" max="50" value="5"></div>
-                <div class="slider-item">색상: <input type="color" id="logo-shadow-color" value="#000000"></div>
-            </div>
+    <div class="estimate" id="ex-estimate"></div>
 
-            <div style="display: flex; align-items: center; margin-top: 10px;">
-                <label style="cursor:pointer; font-size: 14px; display: flex; align-items: center;">
-                    <input type="checkbox" id="logo-border-toggle" style="margin-right: 5px;"> 로고 테두리 설정
-                </label>
-                <button class="reset-mini-btn" onclick="resetBorder()">↺</button>
-            </div>
-            <div id="logo-border-controls" style="display: none; margin-top: 10px; font-size: 13px;">
-                <div class="slider-item">
-                    두께: 
-                    <input type="range" id="logo-border-width" min="0" step="0.01" max="15" value="2.5">
-                    <input type="number" id="logo-border-num" class="num-input" value="2.5" step="0.01">
-                </div>
-                <div class="slider-item">
-                    색상: <input type="color" id="logo-border-color" value="#000000">
-                </div>
-            </div>
-        </div>
+    <div class="progress" id="ex-progress" hidden>
+      <div class="progress-track"><div class="progress-fill" id="ex-progress-fill"></div></div>
+      <div class="progress-text" id="ex-progress-text"></div>
     </div>
 
-    <div class="control-section">
-        <div class="section-title" onclick="toggleSection(this)">
-            <span>💾 저장 옵션</span>
-            <span class="toggle-arrow">▼</span>
-        </div>
-        <div class="section-content">
-            <div class="slider-item">
-                <div class="label-with-reset">배속(움짤) <button class="reset-mini-btn" onclick="resetPlainInput('gif-speed-input', 1.0)">↺</button></div>
-                <input type="number" id="gif-speed-input" class="num-input" value="1.0" step="0.1" min="0.1">
-            </div>
-            <div class="slider-item">
-                <div class="label-with-reset">FPS(움짤) <button class="reset-mini-btn" onclick="resetPlainInput('gif-fps-input', 0)">↺</button></div>
-                <input type="number" id="gif-fps-input" class="num-input" value="0">
-            </div>
-            <div class="slider-item">
-                <div class="label-with-reset">지연(움짤) <button class="reset-mini-btn" onclick="resetPlainInput('gif-delay-input', 0)">↺</button></div>
-                <input type="number" id="gif-delay-input" class="num-input" value="0">
-            </div>
-            <div class="slider-item">
-                <div class="label-with-reset">배율 <button class="reset-mini-btn" onclick="resetPlainInput('res-scale-input', '1.0')">↺</button></div>
-                <select id="res-scale-input" class="num-input" style="width: 70px;">
-                    <option value="0.5">0.5x</option>
-                    <option value="0.75">0.75x</option>
-                    <option value="1.0" selected>1.0x</option>
-                    <option value="1.5">1.5x</option>
-                    <option value="2.0">2.0x</option>
-                </select>
-            </div>
-            <div class="slider-item">
-                <div class="label-with-reset">품질(움짤) <button class="reset-mini-btn" onclick="resetPlainInput('gif-quality-input', 10)">↺</button></div>
-                <input type="number" id="gif-quality-input" class="num-input" value="10" min="1" max="20">
-            </div>
-        </div>
+    <div class="dialog-actions">
+      <button type="button" class="ghost-btn" id="ex-cancel">닫기</button>
+      <button type="button" class="primary-btn" id="ex-run">저장</button>
     </div>
+  </form>
+</dialog>
 
-    <div style="margin-top: auto;">
-        <button class="upload-btn" style="background: #495057; margin-bottom: 5px;" onclick="window.open('https://Rukara12.github.io/Tenka-ZZANG-Template/old/old.html', '_blank');">구버전 에디터 바로가기</button>
-        <button class="issue-btn" onclick="window.open('https://github.com/Rukara12/Tenka-ZZANG-Template/tree/main', '_blank');">이슈 보고</button>
-        <div style="display: flex; gap: 5px; margin-bottom: 5px;">
-            <button class="history-btn" onclick="undo()">되돌리기 (Ctrl+Z)</button>
-            <button class="history-btn" onclick="redo()">다시하기 (Ctrl+Y)</button>
-        </div>
-        <button class="save-btn" id="save-btn">최종 결과물 저장 (GIF/PNG)</button>
-    </div>
-</aside>
+<div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="https://unpkg.com/fabric@5.3.0/dist/fabric.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/buzzfeed/libgif-js@master/libgif.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<input type="file" id="file-input" accept="image/*" hidden>
+<input type="file" id="font-input" accept=".ttf,.otf,.woff,.woff2" hidden>
 
-<script>
-    const canvas = new fabric.Canvas('c', {
-        preserveObjectStacking: true,
-        selection: false,
-        allowTouchScrolling: false
-    });
+<div class="drop-veil" id="drop-veil" hidden><span>여기에 놓으면 들어갑니다</span></div>
 
-    const Z_INDEX = { PLACEHOLDER: 0, USER_IMG: 10, OVERLAY: 20, LOGO: 30, TEXT: 40 };
-    
-    const layers = {
-        img1: null, img2: null, img3: null, overlay: null,
-        text_tl: null, text_bl: null, text_tr: null, placeholders: []
-    };
-
-    const clipRects = {
-        img1: { left: 200, top: 0, width: 700, height: 440 },
-        img2: { left: 531, top: 470, width: 90, height: 150 },
-        img3: { left: 635, top: 415, width: 380, height: 340 }
-    };
-
-    let activeGifs = [];
-
-    document.fonts.ready.then(() => { initCanvas(); });
-
-    // UI 제어 함수
-    function toggleSection(header) {
-        const content = header.nextElementSibling;
-        const arrow = header.querySelector('.toggle-arrow');
-        content.classList.toggle('collapsed');
-        if (content.classList.contains('collapsed')) {
-            arrow.style.transform = 'rotate(-90deg)';
-        } else {
-            arrow.style.transform = 'rotate(0deg)';
-        }
-    }
-
-    function resetInputValue(id, val, isFont = false) {
-        const sliders = document.querySelectorAll(`.font-slider[data-id="${id}"]`);
-        const nums = document.querySelectorAll(`.num-input[data-id="${id}"]`);
-        sliders.forEach(s => s.value = val);
-        nums.forEach(n => n.value = val);
-        if (isFont && layers[id]) {
-            layers[id].set('fontSize', val);
-            alignVerticalCenter(layers[id]);
-            canvas.requestRenderAll();
-            saveHistory();
-        }
-    }
-
-    function resetPlainInput(id, val) {
-        document.getElementById(id).value = val;
-    }
-
-    function resetShadow() {
-        document.getElementById('logo-shadow-blur').value = 10;
-        document.getElementById('logo-shadow-offsetx').value = 5;
-        document.getElementById('logo-shadow-offsety').value = 5;
-        document.getElementById('logo-shadow-color').value = "#000000";
-        updateLogoEffects();
-    }
-
-    function resetBorder() {
-        document.getElementById('logo-border-width').value = 2.5;
-        document.getElementById('logo-border-num').value = 2.5;
-        document.getElementById('logo-border-color').value = "#000000";
-        updateLogoEffects();
-    }
-
-    function initCanvas() {
-        createPlaceholders();
-        const bgImg = new Image();
-        bgImg.src = 'tenka.png';
-        bgImg.onload = function() {
-            const img = new fabric.Image(bgImg, { left: 0, top: 0, selectable: false, evented: false });
-            img._layerKey = 'overlay';
-            layers.overlay = img;
-            canvas.add(img);
-            initTextLayers();
-            reorderLayers();
-            saveHistory();
-        };
-        canvas.on('object:modified', saveHistory);
-    }
-
-    function createPlaceholders() {
-        const createRect = (l, t, w, h, txt) => {
-            const rect = new fabric.Rect({
-                left: l, top: t, width: w, height: h,
-                fill: '#f8f9fa', stroke: '#ced4da', strokeWidth: 2, strokeDashArray: [5, 5],
-                selectable: false, evented: false
-            });
-            const text = new fabric.Text(txt, {
-                left: l + w/2, top: t + h/2, originX: 'center', originY: 'center',
-                fontSize: 16, fill: '#adb5bd', fontFamily: 'PyeongtaekSunset', selectable: false, evented: false
-            });
-            layers.placeholders.push({ rect, text });
-            canvas.add(rect, text);
-        };
-        createRect(200, 0, 700, 440, "말풍선 사진 영역");
-        createRect(531, 470, 90, 150, "폰");
-        createRect(635, 415, 380, 340, "로고 영역");
-    }
-
-    function initTextLayers() {
-        const commonStyle = {
-            fontFamily: 'PyeongtaekSunset', fontWeight: 'bold', textAlign: 'center',
-            fill: '#000000', lineHeight: 1.2, originX: 'left', originY: 'top',
-            editable: true, splitByGrapheme: false, padding: 15
-        };
-
-        const createText = (text, l, t, w, h, key, defaultSize) => {
-            const tBox = new fabric.Textbox(text, {
-                ...commonStyle, left: l, top: t, width: w, height: h, fixedHeight: h, fontSize: defaultSize
-            });
-            tBox._layerKey = key;
-            tBox._originalTop = t;
-            layers[key] = tBox;
-            canvas.add(tBox);
-            
-            tBox.on('scaling', function() {
-                const scaleX = this.scaleX;
-                const newFontSize = this.fontSize * scaleX;
-                this.set({ fontSize: newFontSize, width: this.width * scaleX, scaleX: 1, scaleY: 1 });
-                syncFontControls(this);
-            });
-
-            tBox.on('changed', () => { alignVerticalCenter(tBox); saveHistory(); });
-        };
-
-        createText("텐카쨩 반박하는 내용··· 듣기 싫은 말···", 1, 1, 215, 330, 'text_tl', 41);
-        createText("나쨩 미안··· 잘 안 들려··· 아무튼 어쩌구 저쩌구 한데다 이러저러하고 이래저래 장점이 많아서 재밌는 게임이라는 장황한 설명···", 1, 420, 230, 350, 'text_bl', 24);
-        createText("나쨩 이거 봐봐···! 대충 어쩌구 저쩌구 갓겜···!", 810, 1, 215, 410, 'text_tr', 44);
-
-        Object.keys(layers).forEach(k => { if(k.startsWith('text')) alignVerticalCenter(layers[k]); });
-    }
-
-    function alignVerticalCenter(textbox) {
-        if (!textbox || !textbox.fixedHeight) return;
-        const textHeight = textbox.calcTextHeight();
-        const boxHeight = textbox.fixedHeight;
-        const originalTop = textbox._originalTop || textbox.top;
-        if (textHeight < boxHeight) { textbox.set('top', originalTop + (boxHeight - textHeight) / 2); } 
-        else { textbox.set('top', originalTop); }
-        canvas.requestRenderAll();
-    }
-
-    function reorderLayers() {
-        layers.placeholders.forEach(p => { p.rect.sendToBack(); p.text.sendToBack(); });
-        if (layers.img1) layers.img1.moveTo(Z_INDEX.USER_IMG);
-        if (layers.img2) layers.img2.moveTo(Z_INDEX.USER_IMG + 1);
-        if (layers.overlay) layers.overlay.moveTo(Z_INDEX.OVERLAY);
-        if (layers.img3) layers.img3.moveTo(Z_INDEX.LOGO);
-        if (layers.text_tl) layers.text_tl.bringToFront();
-        if (layers.text_bl) layers.text_bl.bringToFront();
-        if (layers.text_tr) layers.text_tr.bringToFront();
-        canvas.requestRenderAll();
-    }
-
-    function updateGifInfo() {
-        let infoStr = "측정된 FPS:<br>";
-        if (activeGifs.length === 0) {
-            infoStr = "측정된 FPS: -";
-        } else {
-            activeGifs.forEach((g) => {
-                let d = 100;
-                try { d = g.superGif.get_frames()[0].delay * 10; } catch(e) {}
-                let fps = (1000 / d).toFixed(1);
-                let name = g.fabricObj._layerKey === 'img1' ? '말풍선' : (g.fabricObj._layerKey === 'img2' ? '핸드폰' : '로고');
-                infoStr += `[${name}] ${fps} FPS<br>`;
-            });
-        }
-        document.getElementById('detected-fps-info').innerHTML = infoStr;
-    }
-
-    function cleanupLayer(layerKey) {
-        if (!layers[layerKey]) return;
-        canvas.remove(layers[layerKey]);
-        const gifIdx = activeGifs.findIndex(g => g.fabricObj === layers[layerKey]);
-        if (gifIdx > -1) {
-            const gifData = activeGifs[gifIdx];
-            if (gifData.superGif) gifData.superGif.pause();
-            if (gifData.container && gifData.container.parentNode) {
-                gifData.container.parentNode.removeChild(gifData.container);
-            }
-            activeGifs.splice(gifIdx, 1);
-        }
-        layers[layerKey] = null;
-        updateGifInfo();
-    }
-
-    function handleImageUpload(file, layerKey) {
-        if (!file) return;
-        cleanupLayer(layerKey);
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const result = e.target.result;
-            if (file.type === 'image/gif') { loadGif(result, layerKey); } 
-            else { fabric.Image.fromURL(result, function(img) { setupLayerObj(img, layerKey); }); }
-        };
-        reader.readAsDataURL(file);
-    }
-
-    function loadGif(dataUrl, layerKey) {
-        const container = document.createElement('div');
-        container.style.position = 'fixed'; container.style.left = '-9999px';
-        container.style.top = '-9999px'; container.style.visibility = 'hidden';
-        container.style.width = '0px'; container.style.height = '0px';
-        container.style.overflow = 'hidden';
-        document.body.appendChild(container);
-
-        const imgTag = document.createElement('img');
-        imgTag.src = dataUrl;
-        container.appendChild(imgTag);
-
-        const rubbableGif = new SuperGif({ gif: imgTag, auto_play: false });
-        rubbableGif.load(function() {
-            const gifCanvas = rubbableGif.get_canvas();
-            const fabricImg = new fabric.Image(gifCanvas, { objectCaching: false });
-            fabricImg._gifDataUrl = dataUrl; 
-            setupLayerObj(fabricImg, layerKey);
-            activeGifs.push({ fabricObj: fabricImg, superGif: rubbableGif, canvasEl: gifCanvas, container: container });
-            rubbableGif.play();
-            updateGifInfo();
-        });
-    }
-
-    function setupLayerObj(obj, layerKey) {
-        let def = { left: 0, top: 0 };
-        if (clipRects[layerKey]) {
-            def = { left: clipRects[layerKey].left + clipRects[layerKey].width / 2, top: clipRects[layerKey].top + clipRects[layerKey].height / 2 };
-            obj.set({ originX: 'center', originY: 'center', left: def.left, top: def.top });
-            obj.clipPath = new fabric.Rect({ left: clipRects[layerKey].left, top: clipRects[layerKey].top, width: clipRects[layerKey].width, height: clipRects[layerKey].height, absolutePositioned: true });
-        }
-        if (obj.width > 500 && layerKey !== 'img1') obj.scaleToWidth(300);
-        obj._layerKey = layerKey;
-        obj._originalState = { left: def.left, top: def.top, scaleX: obj.scaleX, scaleY: obj.scaleY, angle: 0, flipX: false };
-        layers[layerKey] = obj;
-        canvas.add(obj);
-        canvas.setActiveObject(obj);
-        reorderLayers();
-        saveHistory();
-    }
-
-    function renderLoop() {
-        if (activeGifs.length > 0) {
-            let dirty = false;
-            activeGifs.forEach(g => { if (g.superGif.get_playing()) { g.fabricObj.dirty = true; dirty = true; } });
-            if (dirty) canvas.requestRenderAll();
-        }
-        requestAnimationFrame(renderLoop);
-    }
-    requestAnimationFrame(renderLoop);
-
-    document.querySelectorAll('input[name="target"]').forEach(radio => {
-        radio.addEventListener('change', (e) => {
-            const val = e.target.value;
-            canvas.discardActiveObject();
-            if (val !== 'none' && layers[val]) { canvas.setActiveObject(layers[val]); }
-            canvas.requestRenderAll();
-        });
-    });
-
-    canvas.on('selection:created', onSelectionChange);
-    canvas.on('selection:updated', onSelectionChange);
-    canvas.on('selection:cleared', () => {
-        setFocusMode(null);
-        document.querySelector('input[name="target"][value="none"]').checked = true;
-    });
-
-    function setFocusMode(activeObj) {
-        if (!layers.overlay) return;
-        const photoTargets = [layers.img1, layers.img2, layers.img3];
-        const isPhotoSelected = photoTargets.includes(activeObj);
-        if (isPhotoSelected && activeObj !== null) {
-            layers.overlay.set('opacity', 0.3);
-            ['text_tl', 'text_bl', 'text_tr'].forEach(k => { if(layers[k]) layers[k].set('opacity', 0); });
-        } else {
-            layers.overlay.set('opacity', 1.0);
-            ['text_tl', 'text_bl', 'text_tr'].forEach(k => { if(layers[k]) layers[k].set('opacity', 1.0); });
-        }
-        canvas.requestRenderAll();
-    }
-
-    function resetAllOpacities() {
-        if (layers.overlay) layers.overlay.set('opacity', 1.0);
-        ['text_tl', 'text_bl', 'text_tr'].forEach(k => { if(layers[k]) layers[k].set('opacity', 1.0); });
-        canvas.requestRenderAll();
-    }
-
-    window.resetActiveObject = () => {
-        const obj = canvas.getActiveObject();
-        if(obj && obj._originalState) {
-            obj.set({ left: obj._originalState.left, top: obj._originalState.top, scaleX: obj._originalState.scaleX, scaleY: obj._originalState.scaleY, angle: 0, flipX: false });
-            canvas.requestRenderAll();
-            saveHistory();
-        }
-    };
-    window.rotateActiveObject = () => {
-        const obj = canvas.getActiveObject();
-        if(obj) { obj.rotate((obj.angle + 90) % 360); canvas.requestRenderAll(); saveHistory(); }
-    };
-    window.flipActiveObject = () => {
-        const obj = canvas.getActiveObject();
-        if(obj) { obj.set('flipX', !obj.flipX); canvas.requestRenderAll(); saveHistory(); }
-    };
-
-    window.deleteActiveObject = () => {
-        const obj = canvas.getActiveObject();
-        if (obj && obj._layerKey && obj._layerKey.startsWith('img')) {
-            cleanupLayer(obj._layerKey);
-            saveHistory();
-            canvas.requestRenderAll();
-        }
-    };
-
-    function syncFontControls(textbox) {
-        if (!textbox._layerKey) return;
-        const id = textbox._layerKey;
-        const val = Math.round(textbox.fontSize);
-        const slider = document.querySelector(`.font-slider[data-id="${id}"]`);
-        const num = document.querySelector(`.num-input[data-id="${id}"]`);
-        if (slider) slider.value = val;
-        if (num) num.value = val;
-    }
-
-    document.querySelectorAll('.font-slider, .font-num').forEach(el => {
-        el.addEventListener('input', (e) => {
-            const id = e.target.dataset.id;
-            const val = parseInt(e.target.value);
-            if (layers[id]) {
-                layers[id].set('fontSize', val);
-                document.querySelector(`.font-slider[data-id="${id}"]`).value = val;
-                document.querySelector(`.num-input[data-id="${id}"]`).value = val;
-                alignVerticalCenter(layers[id]);
-                canvas.requestRenderAll();
-                saveHistory();
-            }
-        });
-    });
-
-    function updateLogoEffects() {
-        if (!layers.img3) return;
-        const shadowOn = document.getElementById('logo-shadow-toggle').checked;
-        const borderOn = document.getElementById('logo-border-toggle').checked;
-        layers.img3.set({ stroke: null, strokeWidth: 0, shadow: null });
-        if (!shadowOn && !borderOn) {
-            delete layers.img3._render;
-            canvas.requestRenderAll();
-            return;
-        }
-        layers.img3._render = function(ctx) {
-            const el = this._element;
-            if (!el) return;
-            ctx.save();
-            const w = this.width; const h = this.height;
-            if (borderOn) {
-                const bWidth = parseFloat(document.getElementById('logo-border-width').value);
-                const bColor = document.getElementById('logo-border-color').value;
-                ctx.filter = `drop-shadow(${bWidth}px 0 0 ${bColor}) drop-shadow(-${bWidth}px 0 0 ${bColor}) drop-shadow(0 ${bWidth}px 0 ${bColor}) drop-shadow(0 -${bWidth}px 0 ${bColor})`;
-            }
-            if (shadowOn) {
-                ctx.shadowColor = document.getElementById('logo-shadow-color').value;
-                ctx.shadowBlur = parseInt(document.getElementById('logo-shadow-blur').value);
-                ctx.shadowOffsetX = parseInt(document.getElementById('logo-shadow-offsetx').value);
-                ctx.shadowOffsetY = parseInt(document.getElementById('logo-shadow-offsety').value);
-            }
-            ctx.drawImage(el, -w/2, -h/2, w, h);
-            ctx.restore();
-        };
-        canvas.requestRenderAll();
-        saveHistory();
-    }
-    
-    document.getElementById('logo-shadow-toggle').addEventListener('change', (e) => {
-        document.getElementById('logo-shadow-controls').style.display = e.target.checked ? 'block' : 'none';
-        updateLogoEffects();
-    });
-    ['logo-shadow-blur', 'logo-shadow-offsetx', 'logo-shadow-offsety', 'logo-shadow-color'].forEach(id => {
-        document.getElementById(id).addEventListener('input', updateLogoEffects);
-    });
-    document.getElementById('logo-border-toggle').addEventListener('change', (e) => {
-        document.getElementById('logo-border-controls').style.display = e.target.checked ? 'block' : 'none';
-        updateLogoEffects();
-    });
-    document.getElementById('logo-border-width').addEventListener('input', (e) => {
-        document.getElementById('logo-border-num').value = e.target.value;
-        updateLogoEffects();
-    });
-    document.getElementById('logo-border-color').addEventListener('input', updateLogoEffects);
-
-    let stateHistory = [];
-    let historyStep = -1;
-    let isHistoryLocked = false;
-    const SAVE_PROPS = ['editable', 'id', 'fixedHeight', 'selectable', 'evented', '_layerKey', '_originalState', 'padding', '_originalTop', '_gifDataUrl'];
-
-    function saveHistory() {
-        if (isHistoryLocked) return;
-        const json = JSON.stringify(canvas.toJSON(SAVE_PROPS));
-        if (historyStep < stateHistory.length - 1) stateHistory = stateHistory.slice(0, historyStep + 1);
-        stateHistory.push(json);
-        historyStep++;
-        if(stateHistory.length > 20) { stateHistory.shift(); historyStep--; }
-    }
-
-    function undo() { 
-        if (historyStep > 0) { 
-            const activeObj = canvas.getActiveObject();
-            if (activeObj && activeObj.isEditing) activeObj.exitEditing(); 
-            historyStep--; 
-            loadState(stateHistory[historyStep]); 
-        } 
-    }
-    
-    function redo() { 
-        if (historyStep < stateHistory.length - 1) { 
-            const activeObj = canvas.getActiveObject();
-            if (activeObj && activeObj.isEditing) activeObj.exitEditing();
-            historyStep++; 
-            loadState(stateHistory[historyStep]); 
-        } 
-    }
-
-    function loadState(json) {
-        isHistoryLocked = true;
-        canvas.discardActiveObject();
-
-        activeGifs.forEach(g => {
-            if (g.superGif) g.superGif.pause();
-            if (g.container && g.container.parentNode) {
-                g.container.parentNode.removeChild(g.container);
-            }
-        });
-        activeGifs = [];
-
-        canvas.loadFromJSON(json, () => {
-            const objs = canvas.getObjects();
-            layers.img1 = layers.img2 = layers.img3 = null;
-
-            objs.forEach(obj => {
-                if (obj._layerKey) {
-                    layers[obj._layerKey] = obj;
-                    if(clipRects[obj._layerKey]) {
-                        obj.clipPath = new fabric.Rect({ 
-                            left: clipRects[obj._layerKey].left, 
-                            top: clipRects[obj._layerKey].top, 
-                            width: clipRects[obj._layerKey].width, 
-                            height: clipRects[obj._layerKey].height, 
-                            absolutePositioned: true 
-                        });
-                    }
-                }
-
-                if (obj.type === 'textbox') {
-                    obj.set({ editable: true, selectable: true });
-                    obj.setCoords(); 
-                    obj.on('changed', () => { alignVerticalCenter(obj); saveHistory(); });
-                    obj.on('scaling', function() {
-                        const scaleX = this.scaleX;
-                        const newFontSize = this.fontSize * scaleX;
-                        this.set({ fontSize: newFontSize, width: this.width * scaleX, scaleX: 1, scaleY: 1 });
-                        syncFontControls(this);
-                    });
-                }
-
-                if (obj._gifDataUrl) {
-                    const container = document.createElement('div');
-                    container.style.position = 'fixed'; container.style.left = '-9999px';
-                    container.style.top = '-9999px'; container.style.visibility = 'hidden';
-                    container.style.width = '0px'; container.style.height = '0px';
-                    container.style.overflow = 'hidden';
-                    document.body.appendChild(container);
-
-                    const imgTag = document.createElement('img');
-                    imgTag.src = obj._gifDataUrl;
-                    container.appendChild(imgTag);
-
-                    const rubbableGif = new SuperGif({ gif: imgTag, auto_play: false });
-                    rubbableGif.load(function() {
-                        const gifCanvas = rubbableGif.get_canvas();
-                        obj.setElement(gifCanvas);
-                        obj.set({ objectCaching: false, dirty: true });
-                        activeGifs.push({ fabricObj: obj, superGif: rubbableGif, canvasEl: gifCanvas, container: container });
-                        rubbableGif.play();
-                        updateGifInfo();
-                    });
-                }
-            });
-
-            if (layers.img3) updateLogoEffects();
-
-            reorderLayers();
-            isHistoryLocked = false;
-            canvas.requestRenderAll();
-            updateGifInfo();
-        });
-    }
-
-    const gifWorkerBlob = new Blob([`importScripts('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');`], { type: 'application/javascript' });
-    const workerUrl = URL.createObjectURL(gifWorkerBlob);
-
-    document.getElementById('save-btn').addEventListener('click', async () => {
-        canvas.discardActiveObject();
-        resetAllOpacities();
-
-        const now = new Date();
-        const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-        const resScale = parseFloat(document.getElementById('res-scale-input').value);
-        const gifQuality = parseInt(document.getElementById('gif-quality-input').value);
-
-        const wrapper = document.getElementById('canvas-wrapper');
-        const originalTransform = wrapper.style.transform;
-        const originalMargin = wrapper.style.marginTop;
-        wrapper.style.transform = 'none'; wrapper.style.marginTop = '0';
-        
-        const loading = document.getElementById('loading-overlay');
-        const loadingText = document.getElementById('loading-text');
-        loading.style.display = 'flex';
-
-        if (activeGifs.length === 0) {
-            setTimeout(() => {
-                const dataURL = canvas.toDataURL({ format: 'png', multiplier: resScale });
-                const link = document.createElement('a');
-                link.download = `텐카_결과물_${dateStr}.png`;
-                link.href = dataURL; link.click();
-                wrapper.style.transform = originalTransform; wrapper.style.marginTop = originalMargin;
-                loading.style.display = 'none';
-            }, 100);
-            return;
-        }
-
-        let speedMult = parseFloat(document.getElementById('gif-speed-input').value) || 1.0;
-        let userFps = parseFloat(document.getElementById('gif-fps-input').value);
-        let userFrameDelay = parseInt(document.getElementById('gif-delay-input').value);
-
-        loadingText.innerText = "프레임 추출 중...";
-        let mainGif = activeGifs[0];
-        let calculatedMaxFrames = 0;
-        let originalDelay = 100;
-        activeGifs.forEach(g => {
-            const len = g.superGif.get_length();
-            if (len > calculatedMaxFrames) { calculatedMaxFrames = len; mainGif = g; }
-        });
-        try {
-            const frames = mainGif.superGif.get_frames(); 
-            if(frames && frames.length > 0 && frames[0].delay) originalDelay = frames[0].delay * 10;
-        } catch(e) {}
-        let finalDelay = originalDelay / speedMult;
-        if (userFps > 0) finalDelay = 1000 / userFps;
-        else if (userFrameDelay > 0) finalDelay = userFrameDelay;
-
-        const totalDuration = (calculatedMaxFrames * originalDelay) / speedMult;
-        const maxFrames = Math.max(1, Math.round(totalDuration / finalDelay));
-
-        const gif = new GIF({ 
-            workers: 4, quality: gifQuality, 
-            width: 1024 * resScale, height: 765 * resScale, 
-            workerScript: workerUrl 
-        });
-        activeGifs.forEach(g => g.superGif.pause());
-
-        for (let i = 0; i < maxFrames; i++) {
-            loadingText.innerText = `프레임 캡처 (${i + 1}/${maxFrames})`;
-            activeGifs.forEach(g => {
-                const len = g.superGif.get_length();
-                const progress = i / maxFrames;
-                const targetFrame = Math.floor(progress * len);
-                g.superGif.move_to(targetFrame % len);
-                g.fabricObj.dirty = true;
-            });
-            const frameCanvas = canvas.toCanvasElement(resScale);
-            gif.addFrame(frameCanvas, { delay: finalDelay, copy: true });
-            await new Promise(r => setTimeout(r, 0));
-        }
-        
-        loadingText.innerText = "인코딩 중...";
-        gif.on('finished', function(blob) {
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `텐카_움짤_${dateStr}.gif`;
-            link.click();
-            activeGifs.forEach(g => g.superGif.play());
-            wrapper.style.transform = originalTransform; wrapper.style.marginTop = originalMargin;
-            loading.style.display = 'none';
-        });
-        gif.render();
-    });
-
-    document.getElementById('mobile-mode-toggle').addEventListener('change', (e) => {
-        const wrapper = document.getElementById('canvas-wrapper');
-        if (e.target.checked) {
-            document.body.classList.add('mobile-mode');
-            const winWidth = window.innerWidth;
-            const scale = Math.min((winWidth - 40) / 1024, 1);
-            wrapper.style.transform = `scale(${scale})`;
-            wrapper.style.marginTop = '0px';
-        } else {
-            document.body.classList.remove('mobile-mode');
-            wrapper.style.transform = 'scale(1)';
-            wrapper.style.marginTop = '0';
-        }
-    });
-
-    window.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
-        if (e.key === 'Delete') { deleteActiveObject(); }
-    });
-    
-    document.getElementById('font-input').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-            const fontFace = new FontFace('CustomFont', ev.target.result);
-            await fontFace.load();
-            document.fonts.add(fontFace);
-            ['text_tl', 'text_bl', 'text_tr'].forEach(k => { if(layers[k]) layers[k].set('fontFamily', 'CustomFont'); });
-            canvas.requestRenderAll();
-            alert('새로운 폰트가 적용되었습니다.');
-        };
-        reader.readAsArrayBuffer(file);
-    });
-
-    document.getElementById('sgdb-search-btn').addEventListener('click', function() {
-        const term = document.getElementById('sgdb-input').value.trim();
-        if (term) window.open(`https://www.steamgriddb.com/search/grids?term=${encodeURIComponent(term)}`, '_blank');
-    });
-
-    document.getElementById('img-input-1').addEventListener('change', (e) => handleImageUpload(e.target.files[0], 'img1'));
-    document.getElementById('img-input-2').addEventListener('change', (e) => handleImageUpload(e.target.files[0], 'img2'));
-    document.getElementById('img-input-3').addEventListener('change', (e) => handleImageUpload(e.target.files[0], 'img3'));
-
-    // 드래그 앤 드롭 이벤트 처리 수정
-    const dropZone = document.getElementById('drop-zone');
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.style.backgroundColor = '#adb5bd';
-    });
-
-    dropZone.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.style.backgroundColor = '#ced4da';
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.style.backgroundColor = '#ced4da';
-
-        const files = e.dataTransfer.files;
-        if (files && files.length > 0) {
-            const selectedTarget = document.querySelector('input[name="target"]:checked').value;
-            let targetLayer = selectedTarget;
-
-            // 선택된 레이어가 없거나 이미지 레이어가 아닐 때 마우스 좌표 기준 감지
-            if (selectedTarget === 'none' || !selectedTarget.startsWith('img')) {
-                const pointer = canvas.getPointer(e);
-                const x = pointer.x;
-                const y = pointer.y;
-
-                // 기본 레이어는 img1로 설정하되, 각 클리핑 영역 안에 마우스가 있다면 해당 레이어로 변경
-                targetLayer = 'img1'; 
-                for (const [key, rect] of Object.entries(clipRects)) {
-                    if (x >= rect.left && x <= rect.left + rect.width &&
-                        y >= rect.top && y <= rect.top + rect.height) {
-                        targetLayer = key;
-                        break;
-                    }
-                }
-            }
-            handleImageUpload(files[0], targetLayer);
-        }
-    });
-
-    function onSelectionChange(e) {
-        const obj = e.selected[0];
-        setFocusMode(obj);
-        let val = 'none';
-        if (obj === layers.img1) val = 'img1';
-        else if (obj === layers.img2) val = 'img2';
-        else if (obj === layers.img3) val = 'img3';
-        const radio = document.querySelector(`input[name="target"][value="${val}"]`);
-        if (radio) radio.checked = true;
-    }
-</script>
+<script type="module" src="src/main.js"></script>
 </body>
 </html>
