@@ -5,6 +5,10 @@
 import { CANVAS, SLOTS, SLOT_MAP, TEXTS, TEXT_MAP, LIMITS } from './config.js';
 import { getAsset, frameAt, frameIndexAt } from './assets.js';
 import { drawText, fitSize, wrap } from './text.js';
+import { visibleRect, holesReady } from './mask.js';
+
+/** 가려지는 부분을 비춰 주는 정도. */
+const GHOST_ALPHA = 0.26;
 
 /* ---------- 로고 외곽선 캐시 ---------- */
 
@@ -15,6 +19,26 @@ function makeCanvas(w, h) {
   if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
+  return c;
+}
+
+/* ---------- 합성용 임시 캔버스 ---------- */
+
+// 미리보기 보조선은 매 프레임 그려지므로 캔버스를 새로 만들면 GC 가 요동친다.
+// 가장 큰 요구 크기에 맞춰 하나만 두고 돌려 쓴다.
+let scratchCanvas = null;
+
+function scratch(w, h) {
+  if (!scratchCanvas) scratchCanvas = makeCanvas(w, h);
+  if (scratchCanvas.width < w || scratchCanvas.height < h) {
+    scratchCanvas.width = Math.max(scratchCanvas.width, w);
+    scratchCanvas.height = Math.max(scratchCanvas.height, h);
+  }
+  const c = scratchCanvas.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = 'source-over';
+  c.globalAlpha = 1;
+  c.clearRect(0, 0, scratchCanvas.width, scratchCanvas.height);
   return c;
 }
 
@@ -168,40 +192,77 @@ function drawLogo(ctx, state, time, scale) {
 }
 
 /**
- * 선택된 사진의 '칸 밖으로 잘려나가는 부분'을 옅게 보여준다.
+ * 선택된 사진에서 '보이지 않게 되는 부분'을 옅게 비춰 준다.
  * 이게 없으면 사진을 옮길 때 무엇이 잘리는지 모르는 채로 감으로 맞춰야 한다.
+ *
+ * 가려지는 경로는 둘이고, 넓이로 보면 두 번째가 훨씬 크다.
+ *   (1) 칸 사각형 바깥 — clip 에 잘린다
+ *   (2) 칸 안이지만 템플릿 그림에 덮인다 — 말풍선은 칸의 65% 가 여기 해당한다
+ *
+ * (2)는 overlay 이미지를 그대로 destination-in 마스크로 쓴다. 알파를 있는 그대로
+ * 쓰므로 구멍의 안티에일리어싱된 가장자리까지 정확히 일치하고, 배율을 올려도
+ * 실제로 그려지는 overlay 와 같은 보간을 거치므로 경계가 어긋나지 않는다.
+ * 사각형으로 근사하지 않는 이유가 이것이다.
  */
-function drawCropGhost(ctx, slotKey, state, time) {
+function drawCropGhost(ctx, slotKey, state, time, scale, overlay) {
   const p = state.slots[slotKey];
   const asset = getAsset(p?.asset);
   if (!asset) return;
   const bitmap = frameAt(asset, time);
   if (!bitmap) return;
 
-  const rect = SLOT_MAP[slotKey].rect;
+  const slot = SLOT_MAP[slotKey];
+  const rect = slot.rect;
   const w = asset.width * p.scale;
   const h = asset.height * p.scale;
 
+  // 사진을 제자리에 놓는 변환. 본 렌더(drawSlot)와 반드시 같아야 한다.
+  const place = (c) => {
+    c.translate(p.x, p.y);
+    if (p.angle) c.rotate((p.angle * Math.PI) / 180);
+    if (p.flip) c.scale(-1, 1);
+    c.drawImage(bitmap, -w / 2, -h / 2, w, h);
+  };
+
+  // (1) 칸 사각형 바깥
   ctx.save();
-  // 캔버스 전체에서 칸 사각형을 빼낸 영역 (evenodd) — 칸 안은 이미 제대로 그려져 있다.
   ctx.beginPath();
   ctx.rect(0, 0, CANVAS.w, CANVAS.h);
   ctx.rect(rect.x, rect.y, rect.w, rect.h);
   ctx.clip('evenodd');
-  ctx.globalAlpha = 0.26;
-  ctx.translate(p.x, p.y);
-  if (p.angle) ctx.rotate((p.angle * Math.PI) / 180);
-  if (p.flip) ctx.scale(-1, 1);
-  ctx.drawImage(bitmap, -w / 2, -h / 2, w, h);
+  ctx.globalAlpha = GHOST_ALPHA;
+  place(ctx);
   ctx.restore();
 
-  // 잘리는 경계
-  ctx.save();
-  ctx.setLineDash([]);
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(70, 216, 232, 0.9)';
-  ctx.strokeRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2);
-  ctx.restore();
+  // (2) 칸 안에서 템플릿 그림에 덮이는 부분
+  if (overlay && !slot.above && overlay.complete && overlay.naturalWidth) {
+    const dw = Math.max(1, Math.ceil(rect.w * scale));
+    const dh = Math.max(1, Math.ceil(rect.h * scale));
+    const g = scratch(dw, dh);
+
+    g.setTransform(scale, 0, 0, scale, -rect.x * scale, -rect.y * scale);
+    place(g);
+
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(overlay, -rect.x * scale, -rect.y * scale, CANVAS.w * scale, CANVAS.h * scale);
+
+    ctx.save();
+    ctx.globalAlpha = GHOST_ALPHA;
+    ctx.drawImage(g.canvas, 0, 0, dw, dh, rect.x, rect.y, rect.w, rect.h);
+    ctx.restore();
+  }
+
+  // 로고는 그림 위에 얹히므로 사각형이 곧 경계다. 나머지 칸은 사각형이 구멍보다
+  // 한참 넓어서 선을 그으면 오히려 거짓말이 된다 — 짙게 보이는 부분이 곧 경계다.
+  if (slot.above) {
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(70, 216, 232, 0.9)';
+    ctx.strokeRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2);
+    ctx.restore();
+  }
 }
 
 /** 문구가 칸을 넘쳤을 때 표시하는 테두리. */
@@ -214,28 +275,52 @@ function drawOverflowMark(ctx, box) {
   ctx.restore();
 }
 
-function drawPlaceholders(ctx, state, hovered) {
+/**
+ * 빈 칸 안내. 채움은 실제로 뚫린 모양대로, 테두리와 글자는 그 구멍의 범위에 맞춘다.
+ * 사각형 그대로 칠하면 사진이 들어갈 자리를 실제보다 두 배 넓게 알려주게 된다.
+ */
+function drawPlaceholders(ctx, state, hovered, scale, overlay) {
+  const useHoles = overlay && overlay.complete && overlay.naturalWidth && holesReady();
+
   for (const slot of SLOTS) {
     if (state.slots[slot.key]) continue;
     const r = slot.rect;
+    const vis = useHoles ? visibleRect(slot.key) : r;
+    const active = hovered === slot.key;
+    const fill = active ? 'rgba(70,216,232,0.16)' : 'rgba(240,242,248,0.62)';
+
     ctx.save();
+
+    if (useHoles && !slot.above) {
+      // 구멍 모양만 칠한다 — overlay 알파를 빼내는 방식이라 모양이 정확하다.
+      const dw = Math.max(1, Math.ceil(r.w * scale));
+      const dh = Math.max(1, Math.ceil(r.h * scale));
+      const g = scratch(dw, dh);
+      g.fillStyle = fill;
+      g.fillRect(0, 0, dw, dh);
+      g.globalCompositeOperation = 'destination-out';
+      g.drawImage(overlay, -r.x * scale, -r.y * scale, CANVAS.w * scale, CANVAS.h * scale);
+      ctx.drawImage(g.canvas, 0, 0, dw, dh, r.x, r.y, r.w, r.h);
+    } else {
+      ctx.fillStyle = fill;
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+    }
+
     ctx.setLineDash([9, 7]);
     ctx.lineWidth = 2;
-    const active = hovered === slot.key;
     ctx.strokeStyle = active ? 'rgba(70,216,232,0.95)' : 'rgba(120,130,150,0.55)';
-    ctx.fillStyle = active ? 'rgba(70,216,232,0.10)' : 'rgba(240,242,248,0.55)';
-    ctx.fillRect(r.x, r.y, r.w, r.h);
-    ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+    ctx.strokeRect(vis.x + 1, vis.y + 1, vis.w - 2, vis.h - 2);
+
     ctx.setLineDash([]);
     ctx.fillStyle = active ? '#1a7f8c' : '#7c8496';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const big = r.w > 160 && r.h > 90;
+    const big = vis.w > 160 && vis.h > 90;
     ctx.font = `600 ${big ? 17 : 12}px Pretendard, system-ui, sans-serif`;
-    ctx.fillText(slot.label, r.x + r.w / 2, r.y + r.h / 2 - (big ? 10 : 0));
+    ctx.fillText(slot.label, vis.x + vis.w / 2, vis.y + vis.h / 2 - (big ? 10 : 0));
     if (big) {
       ctx.font = '400 13px Pretendard, system-ui, sans-serif';
-      ctx.fillText('클릭하거나 사진을 끌어다 놓기', r.x + r.w / 2, r.y + r.h / 2 + 14);
+      ctx.fillText('클릭하거나 사진을 끌어다 놓기', vis.x + vis.w / 2, vis.y + vis.h / 2 + 14);
     }
     ctx.restore();
   }
@@ -263,7 +348,7 @@ export function drawScene(ctx, o) {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, CANVAS.w, CANVAS.h);
 
-  if (preview) drawPlaceholders(ctx, state, hovered);
+  if (preview) drawPlaceholders(ctx, state, hovered, scale, overlay);
 
   drawSlot(ctx, 'bubble', state, time);
   drawSlot(ctx, 'phone', state, time);
@@ -295,7 +380,7 @@ export function drawScene(ctx, o) {
 
   if (preview) {
     for (const box of overflowed) drawOverflowMark(ctx, box);
-    if (selected?.type === 'slot') drawCropGhost(ctx, selected.key, state, time);
+    if (selected?.type === 'slot') drawCropGhost(ctx, selected.key, state, time, scale, overlay);
   }
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);

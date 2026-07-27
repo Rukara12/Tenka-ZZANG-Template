@@ -138,9 +138,19 @@ export function migrateState(saved) {
   return base;
 }
 
-/** 슬롯에 처음 사진이 들어갈 때의 배치값. */
-export function defaultPlacement(slotKey, imgW, imgH) {
-  const { rect } = SLOT_MAP[slotKey];
+/**
+ * 슬롯에 처음 사진이 들어갈 때의 배치값.
+ *
+ * @param {string} slotKey
+ * @param {number} imgW
+ * @param {number} imgH
+ * @param {{x:number,y:number,w:number,h:number}} [target]
+ *        맞출 범위. 넘기지 않으면 SLOTS 의 사각형. 실제로는 mask.js 가 잰
+ *        '진짜로 비치는 범위'를 넘겨받는다 — 사각형은 구멍보다 훨씬 넓어서
+ *        그대로 맞추면 보이지도 않는 여백까지 덮느라 과하게 확대된다.
+ */
+export function defaultPlacement(slotKey, imgW, imgH, target) {
+  const rect = target || SLOT_MAP[slotKey].rect;
   // 구멍을 가득 채우되 잘림을 최소화 (cover)
   const scale = Math.max(rect.w / imgW, rect.h / imgH);
   return {

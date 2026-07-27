@@ -5,6 +5,7 @@ import { Editor } from './state.js';
 import { store } from './store.js';
 import { createAsset, restoreAsset, getAsset, frameIndexAt, disposeUnused } from './assets.js';
 import { drawScene, clearOutlineCache } from './renderer.js';
+import { measureHoles, visibleRect } from './mask.js';
 import { Interactor } from './interact.js';
 import { TextEditor } from './textedit.js';
 import { UI, ExportDialog, toast } from './ui.js';
@@ -118,7 +119,12 @@ async function placeFile(file, slotKey) {
   try {
     const { asset, warning } = await createAsset(file);
     editor.update((s) => {
-      s.slots[slotKey] = { asset: asset.id, ...defaultPlacement(slotKey, asset.width, asset.height) };
+      // 사각형이 아니라 실제로 비치는 범위에 맞춘다 — 사각형에 맞추면 보이지 않는
+      // 여백까지 덮느라 필요 이상으로 확대된다.
+      s.slots[slotKey] = {
+        asset: asset.id,
+        ...defaultPlacement(slotKey, asset.width, asset.height, visibleRect(slotKey)),
+      };
     });
     interactor.select({ type: 'slot', key: slotKey });
     clearOutlineCache();
@@ -189,7 +195,7 @@ const ui = new UI(editor, {
     const asset = getAsset(p?.asset);
     if (!asset) return;
     editor.update((s) => {
-      Object.assign(s.slots[key], defaultPlacement(key, asset.width, asset.height));
+      Object.assign(s.slots[key], defaultPlacement(key, asset.width, asset.height, visibleRect(key)));
     });
     refresh();
   },
@@ -427,6 +433,9 @@ document.addEventListener('visibilitychange', () => { lastTs = 0; markDirty(); }
 
 (async function boot() {
   overlayImg = await loadOverlay();
+  // 그림의 알파에서 칸마다 실제로 뚫린 범위를 재둔다. 실패해도(그림이 없거나
+  // 캔버스가 오염되어도) 사각형으로 물러나므로 앱은 그대로 동작한다.
+  measureHoles(overlayImg);
   if (!overlayImg) {
     ui.setStatus('tenka.png 을 찾지 못했습니다. index.html 과 같은 폴더에 있어야 합니다.');
     toast('템플릿 그림(tenka.png)이 없어 배경 없이 보입니다.', 'warn');
