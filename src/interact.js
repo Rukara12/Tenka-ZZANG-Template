@@ -1,14 +1,16 @@
 // 포인터 기반 직접 조작.
 // 마우스와 터치를 Pointer Events 하나로 처리하므로 모바일에서 핀치 확대·회전이 그냥 된다.
 
-import { CANVAS, SLOT_MAP, TEXTS, LIMITS } from './config.js';
+import { CANVAS, SLOT_MAP, TEXTS, TEXT_MAP, LIMITS, MIN_TEXT_BOX, guideBandRect } from './config.js';
 import { getAsset } from './assets.js';
-import { textBox } from './renderer.js';
-import { wrap, fitSize, fontSpec } from './text.js';
+import { insideHole, holeMaskReady } from './mask.js';
+import { textBox, fitTextSize } from './renderer.js';
+import { wrap, fontSpec } from './text.js';
 
 const HANDLE = 9;       // 핸들 반지름(화면 px)
 const HIT_SLOP = 14;    // 핸들 판정 여유
 const ROTATE_ARM = 30;  // 회전 핸들이 상자 위로 떨어진 거리
+const EDGE_PAD = 18;    // 핸들을 화면 안쪽으로 붙여 두는 여유(화면 px)
 
 const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
 const TEXT_PAD = 8;     // 글자 주변 여유 (캔버스 좌표)
@@ -73,6 +75,27 @@ export class Interactor {
     };
   }
 
+  /**
+   * 핸들을 화면 안으로 끌어들인다.
+   *
+   * 핸들은 사진의 바깥 테두리에 붙어 있는데, 사진을 확대하면 그 테두리가 캔버스
+   * 밖으로 나가 버려서 잡을 방법이 사라진다(휠과 슬라이더만 남는다). 크기 조절은
+   * 포인터가 중심에서 멀어진 '비율'로 계산하므로, 핸들을 화면 안으로 당겨 놔도
+   * 조작 결과는 달라지지 않는다.
+   */
+  clampPoints(points) {
+    const pad = EDGE_PAD / this.viewScale();
+    let clamped = false;
+    const out = points.map((p) => {
+      const x = Math.min(CANVAS.w - pad, Math.max(pad, p.x));
+      const y = Math.min(CANVAS.h - pad, Math.max(pad, p.y));
+      if (x !== p.x || y !== p.y) clamped = true;
+      return { ...p, x, y };
+    });
+    out.clamped = clamped;
+    return out;
+  }
+
   cornerPoints(b) {
     const rad = (b.angle * Math.PI) / 180;
     const cos = Math.cos(rad), sin = Math.sin(rad);
@@ -82,12 +105,13 @@ export class Interactor {
     });
   }
 
+  /** 네 변의 한가운데 — 좌우는 너비, 위아래는 높이를 바꾼다. */
   sidePoints(b) {
     const rad = (b.angle * Math.PI) / 180;
     const cos = Math.cos(rad), sin = Math.sin(rad);
-    return [-1, 1].map((sx) => {
-      const x = (sx * b.w) / 2, y = 0;
-      return { x: b.cx + x * cos - y * sin, y: b.cy + x * sin + y * cos, sx };
+    return [[-1, 0], [1, 0], [0, -1], [0, 1]].map(([sx, sy]) => {
+      const x = (sx * b.w) / 2, y = (sy * b.h) / 2;
+      return { x: b.cx + x * cos - y * sin, y: b.cy + x * sin + y * cos, sx, sy };
     });
   }
 
@@ -103,16 +127,17 @@ export class Interactor {
     if (!b) return null;
     const slop = HIT_SLOP / this.viewScale();
 
-    const rp = this.rotatePoint(b);
+    // 그려지는 자리와 판정하는 자리가 같아야 하므로 똑같이 당겨서 쓴다.
+    const [rp] = this.clampPoints([this.rotatePoint(b)]);
     if (this.selection.type === 'slot' && Math.hypot(pt.x - rp.x, pt.y - rp.y) < slop) {
       return { kind: 'rotate' };
     }
-    for (const c of this.cornerPoints(b)) {
+    for (const c of this.clampPoints(this.cornerPoints(b))) {
       if (Math.hypot(pt.x - c.x, pt.y - c.y) < slop) return { kind: 'corner', sx: c.sx, sy: c.sy };
     }
     if (this.selection.type === 'text') {
-      for (const s of this.sidePoints(b)) {
-        if (Math.hypot(pt.x - s.x, pt.y - s.y) < slop) return { kind: 'side', sx: s.sx };
+      for (const s of this.clampPoints(this.sidePoints(b))) {
+        if (Math.hypot(pt.x - s.x, pt.y - s.y) < slop) return { kind: 'side', sx: s.sx, sy: s.sy };
       }
     }
     return null;
@@ -131,9 +156,7 @@ export class Interactor {
     if (!ts || !ts.text.trim()) return false;
 
     const box = textBox(key, ts);
-    const size = ts.auto
-      ? fitSize(measure, ts.text, st.font, box, LIMITS.minFontSize, LIMITS.maxFontSize)
-      : ts.size;
+    const size = ts.auto ? fitTextSize(measure, key, st) : ts.size;
     const m = wrap(measure, ts.text, size, st.font, box.w);
 
     const top = box.y + Math.max(0, (box.h - m.height) / 2);
@@ -143,6 +166,67 @@ export class Interactor {
     measure.font = fontSpec(size, st.font);
     const halfWidth = measure.measureText(m.lines[row]).width / 2;
     return Math.abs(pt.x - (box.x + box.w / 2)) <= halfWidth + TEXT_PAD;
+  }
+
+  /**
+   * 손잡이마다 방향에 맞는 커서를 준다. 무엇을 잡으면 무엇이 되는지 커서로 미리
+   * 알려주는 게 '익숙한 편집기' 느낌의 절반이다. 회전된 사진이면 커서도 같이 돈다.
+   */
+  cursorFor(handle, target) {
+    if (!handle) return target ? 'move' : 'default';
+    if (handle.kind === 'rotate') return 'grab';
+
+    const b = this.boundsOf(this.selection);
+    if (!b) return 'grab';
+
+    // 손잡이가 중심에서 뻗은 방향(도) — 회전을 포함한 실제 화면상의 방향
+    const local = Math.atan2(handle.sy * b.h, handle.sx * b.w);
+    const deg = (local * 180) / Math.PI + (b.angle || 0);
+    const a = ((deg % 180) + 180) % 180;
+
+    if (a < 22.5 || a >= 157.5) return 'ew-resize';
+    if (a < 67.5) return 'nwse-resize';
+    if (a < 112.5) return 'ns-resize';
+    return 'nesw-resize';
+  }
+
+  /**
+   * 이 점이 그 칸을 누른 것으로 볼 것인가.
+   *
+   * 구멍 칸(말풍선·핸드폰)은 사각형 전체다 — 구멍이 곧 보이는 자리라 헷갈릴 게 없다.
+   * 반면 above 칸(로고)의 사각형은 캐릭터를 통째로 덮을 만큼 넓어서, 그 안 아무 데나
+   * 눌러도 로고가 잡히면 밑에 있는 것들을 건드릴 수가 없다. 그래서
+   *   비어 있을 때 — 안내 띠만
+   *   채워져 있을 때 — 실제 로고 그림 위만
+   * 을 누른 것으로 친다.
+   */
+  slotHit(pt, key) {
+    const slot = SLOT_MAP[key];
+    const r = slot.rect;
+    const inRect = pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h;
+    if (!slot.above) {
+      // 구멍 모양 그대로 — 사각형은 구멍보다 훨씬 넓어서 말풍선 바깥을 눌러도
+      // 말풍선이 잡혀 버린다.
+      return holeMaskReady() ? insideHole(key, pt.x, pt.y) : inRect;
+    }
+
+    const p = this.state.slots[key];
+    if (!p) {
+      const b = guideBandRect(key);
+      return pt.x >= b.x && pt.x <= b.x + b.w && pt.y >= b.y && pt.y <= b.y + b.h;
+    }
+    if (!inRect) return false; // 칸 밖은 어차피 잘려서 안 보인다
+
+    const asset = getAsset(p.asset);
+    if (!asset) return false;
+    // 회전을 걷어낸 좌표에서 그림 사각형 안인지 본다
+    const rad = ((p.angle || 0) * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const dx = pt.x - p.x, dy = pt.y - p.y;
+    const lx = dx * cos + dy * sin;
+    const ly = -dx * sin + dy * cos;
+    return Math.abs(lx) <= (asset.width * p.scale) / 2
+        && Math.abs(ly) <= (asset.height * p.scale) / 2;
   }
 
   hitTarget(pt) {
@@ -161,7 +245,7 @@ export class Interactor {
       if (this.textHit(pt, t.key)) return { type: 'text', key: t.key };
     }
     for (const key of ['logo', 'phone', 'bubble']) {
-      if (inRect(SLOT_MAP[key].rect)) return { type: 'slot', key };
+      if (this.slotHit(pt, key)) return { type: 'slot', key };
     }
     return null;
   }
@@ -222,6 +306,24 @@ export class Interactor {
             : this.state.texts[this.selection.key],
         )),
       };
+
+      // 모서리를 잡으면 '반대쪽 모서리'를 못으로 박아 둔다. 파워포인트를 비롯한
+      // 대부분의 편집기가 이렇게 동작한다 — 잡은 곳만 따라오고 나머지는 제자리.
+      // 예전에는 중심을 기준으로 양쪽이 같이 늘어나서 손이 예상한 곳으로 가지 않았다.
+      if (handle.kind === 'corner') {
+        const rad = (b.angle * Math.PI) / 180;
+        const cos = Math.cos(rad), sin = Math.sin(rad);
+        const hx = (handle.sx * b.w) / 2;
+        const hy = (handle.sy * b.h) / 2;
+        this.grab.anchor = {
+          x: b.cx - (hx * cos - hy * sin),
+          y: b.cy - (hx * sin + hy * cos),
+        };
+        // 회전을 걷어낸 좌표계에서 '고정점 → 잡은 모서리' 벡터
+        this.grab.diag = { x: handle.sx * b.w, y: handle.sy * b.h };
+        this.grab.cos = cos;
+        this.grab.sin = sin;
+      }
       return;
     }
 
@@ -256,7 +358,7 @@ export class Interactor {
       const t = this.hitTarget(pt);
       const h = t && t.type === 'slot' && !this.state.slots[t.key] ? t.key : null;
       if (h !== this.hovered) { this.hovered = h; this.hooks.onChange?.(); }
-      this.el.style.cursor = this.hitHandle(pt) ? 'grab' : t ? 'move' : 'default';
+      this.el.style.cursor = this.cursorFor(this.hitHandle(pt), t);
       return;
     }
 
@@ -269,7 +371,7 @@ export class Interactor {
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       this.editor.update((st) => {
         const p = st.slots[this.selection.key];
-        p.scale = clamp(s.scale * factor, 0.02, 40);
+        p.scale = clamp(s.scale * factor, LIMITS.minScale, LIMITS.maxScale);
         p.angle = normAngle(s.rot + (angle - s.angle));
         p.x = mid.x + (s.x - s.mid.x) * factor;
         p.y = mid.y + (s.y - s.mid.y) * factor;
@@ -297,17 +399,71 @@ export class Interactor {
     }
 
     if (this.mode === 'corner') {
-      const b = this.grab.bounds;
-      const d0 = Math.hypot(this.grab.start.x - b.cx, this.grab.start.y - b.cy);
-      const d1 = Math.hypot(pt.x - b.cx, pt.y - b.cy);
-      const factor = d0 > 1 ? d1 / d0 : 1;
+      const g = this.grab;
+      const b = g.bounds;
+
+      // Ctrl(⌘)을 누르고 있으면 가운데를 기준으로 — 파워포인트와 같은 보조키.
+      const fromCenter = e.ctrlKey || e.metaKey;
+
+      let factor;
+      if (fromCenter || !g.anchor) {
+        const d0 = Math.hypot(g.start.x - b.cx, g.start.y - b.cy);
+        const d1 = Math.hypot(pt.x - b.cx, pt.y - b.cy);
+        factor = d0 > 1 ? d1 / d0 : 1;
+      } else {
+        // 고정점 기준 포인터 위치를 회전 없는 좌표계로 되돌린 뒤,
+        // 원래 대각선 벡터에 정사영해서 배율을 얻는다. 가로세로 비가 늘 유지된다.
+        const dx = pt.x - g.anchor.x;
+        const dy = pt.y - g.anchor.y;
+        const lx = dx * g.cos + dy * g.sin;
+        const ly = -dx * g.sin + dy * g.cos;
+        const dd = g.diag.x * g.diag.x + g.diag.y * g.diag.y;
+        factor = dd > 0 ? (lx * g.diag.x + ly * g.diag.y) / dd : 1;
+      }
+      factor = Math.max(0.01, factor);
+
       this.editor.update((st) => {
         if (this.selection.type === 'slot') {
-          st.slots[this.selection.key].scale = clamp(this.grab.snapshot.scale * factor, 0.02, 40);
+          const p = st.slots[this.selection.key];
+          const next = clamp(g.snapshot.scale * factor, LIMITS.minScale, LIMITS.maxScale);
+          p.scale = next;
+          if (!fromCenter && g.anchor) {
+            // 실제로 적용된 배율(한계에 걸렸을 수 있다)로 중심을 다시 잡아
+            // 고정점이 정확히 제자리에 남게 한다.
+            const f = next / g.snapshot.scale;
+            const hx = (g.diag.x / 2) * f;
+            const hy = (g.diag.y / 2) * f;
+            p.x = g.anchor.x + (hx * g.cos - hy * g.sin);
+            p.y = g.anchor.y + (hx * g.sin + hy * g.cos);
+          }
         } else {
-          const t = st.texts[this.selection.key];
+          // 문구는 상자와 글자 크기가 함께 커져야 잡은 모서리가 포인터를 따라온다.
+          // 예전에는 글자 크기만 바뀌고 상자는 가만히 있어서, 끌어도 모서리가
+          // 손을 따라오지 않았다.
+          const key = this.selection.key;
+          const t = st.texts[key];
+          const base = TEXT_MAP[key].box;
+          const sw = g.snapshot.w || base.w;
+          const sh = g.snapshot.h || base.h;
+          const ss = g.snapshot.size;
+
+          // 셋 중 하나라도 한계에 걸리면 나머지도 같이 멈춰야 비율이 유지된다.
+          const f = Math.max(
+            Math.max(LIMITS.minFontSize / ss, MIN_TEXT_BOX / sw, MIN_TEXT_BOX / sh),
+            Math.min(factor, LIMITS.maxFontSize / ss, CANVAS.w / sw, CANVAS.h / sh),
+          );
+
           t.auto = false;
-          t.size = Math.round(clamp(this.grab.snapshot.size * factor, LIMITS.minFontSize, LIMITS.maxFontSize));
+          t.size = Math.round(ss * f);
+          t.w = Math.round(sw * f);
+          t.h = Math.round(sh * f);
+
+          if (!fromCenter && g.anchor) {
+            const cx = g.anchor.x + (g.diag.x / 2) * f;
+            const cy = g.anchor.y + (g.diag.y / 2) * f;
+            t.dx = Math.round(cx - t.w / 2 - base.x);
+            t.dy = Math.round(cy - t.h / 2 - base.y);
+          }
         }
       }, { coalesce: `scale:${this.selection.key}` });
       this.hooks.onChange?.();
@@ -315,11 +471,25 @@ export class Interactor {
     }
 
     if (this.mode === 'side') {
+      // 반대쪽 변을 고정하고 잡은 변만 끈다.
       const b = this.grab.bounds;
-      const half = Math.abs(pt.x - b.cx);
+      const key = this.selection.key;
+      const base = TEXT_MAP[key].box;
+      const { sx, sy } = this.grab.handle;
       this.editor.update((st) => {
-        st.texts[this.selection.key].w = Math.round(clamp(half * 2, 40, CANVAS.w));
-      }, { coalesce: `width:${this.selection.key}` });
+        const t = st.texts[key];
+        if (sx) {
+          const anchor = b.cx - (sx * b.w) / 2;
+          const w = clamp(Math.abs(pt.x - anchor), MIN_TEXT_BOX, CANVAS.w);
+          t.w = Math.round(w);
+          t.dx = Math.round(anchor + (sx * w) / 2 - w / 2 - base.x);
+        } else {
+          const anchor = b.cy - (sy * b.h) / 2;
+          const h = clamp(Math.abs(pt.y - anchor), MIN_TEXT_BOX, CANVAS.h);
+          t.h = Math.round(h);
+          t.dy = Math.round(anchor + (sy * h) / 2 - h / 2 - base.y);
+        }
+      }, { coalesce: `side:${key}` });
       this.hooks.onChange?.();
       return;
     }
@@ -360,7 +530,7 @@ export class Interactor {
     const factor = Math.pow(1.0015, -e.deltaY);
     this.editor.update((st) => {
       const p = st.slots[target.key];
-      const next = clamp(p.scale * factor, 0.02, 40);
+      const next = clamp(p.scale * factor, LIMITS.minScale, LIMITS.maxScale);
       const applied = next / p.scale;
       // 커서 아래 지점이 제자리에 있도록 위치를 보정한다.
       p.x = pt.x + (p.x - pt.x) * applied;
@@ -403,16 +573,20 @@ export class Interactor {
     const vs = rect.width / CANVAS.w;
     const S = (p) => ({ x: p.x * vs, y: p.y * vs });
 
-    const corners = this.cornerPoints(b).map(S);
+    const raw = this.clampPoints(this.cornerPoints(b));
+    const corners = raw.map(S);
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = 'rgba(70,216,232,0.95)';
+    // 사진이 화면 밖까지 뻗어 있으면 테두리를 점선으로 — 실제 경계가 아님을 알린다.
+    ctx.setLineDash(raw.clamped ? [6, 5] : []);
     ctx.beginPath();
     corners.forEach((c, i) => (i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y)));
     ctx.closePath();
     ctx.stroke();
+    ctx.setLineDash([]);
 
     if (this.selection.type === 'slot') {
-      const rp = S(this.rotatePoint(b));
+      const rp = S(this.clampPoints([this.rotatePoint(b)])[0]);
       const topMid = { x: (corners[0].x + corners[1].x) / 2, y: (corners[0].y + corners[1].y) / 2 };
       ctx.beginPath();
       ctx.moveTo(topMid.x, topMid.y);
@@ -448,19 +622,26 @@ export class Interactor {
       return `${pct}%  ·  ${deg}°  ·  ${dims}`;
     }
     const t = this.state.texts[this.selection.key];
-    return `${Math.round(t.size)}pt  ·  폭 ${Math.round(t.w)}`;
+    const base = TEXT_MAP[this.selection.key].box;
+    return `${Math.round(t.size)}pt  ·  ${Math.round(t.w || base.w)}×${Math.round(t.h || base.h)}`;
   }
 }
 
+// 흰 알맹이에 진한 테두리 — 흔한 편집기의 손잡이 모양. 사진이 밝든 어둡든 보인다.
 function dot(ctx, x, y, r) {
+  const rad = r / 2 + 1.5;
   ctx.beginPath();
-  ctx.arc(x, y, r / 2 + 2.5, 0, Math.PI * 2);
-  ctx.fillStyle = '#0d1017';
+  ctx.arc(x, y, rad + 1.2, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(13,16,23,0.28)';
   ctx.fill();
+
   ctx.beginPath();
-  ctx.arc(x, y, r / 2, 0, Math.PI * 2);
-  ctx.fillStyle = '#46d8e8';
+  ctx.arc(x, y, rad, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
   ctx.fill();
+  ctx.lineWidth = 1.6;
+  ctx.strokeStyle = '#0f8fa0';
+  ctx.stroke();
 }
 
 function chip(ctx, x, y, text) {

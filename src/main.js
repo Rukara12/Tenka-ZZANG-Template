@@ -285,7 +285,19 @@ const ui = new UI(editor, {
     const asset = getAsset(p?.asset);
     if (!asset) return;
     editor.update((s) => {
-      Object.assign(s.slots[key], defaultPlacement(key, asset.width, asset.height, visibleRect(key)));
+      // 회전·뒤집기는 유지한다 — 크기와 자리만 다시 잡는 버튼이다.
+      const { angle, flip } = s.slots[key];
+      Object.assign(s.slots[key], defaultPlacement(key, asset.width, asset.height, visibleRect(key)), { angle, flip });
+    });
+    refresh();
+  },
+  onCenterSlot: (key) => {
+    const r = visibleRect(key);
+    editor.update((s) => {
+      const p = s.slots[key];
+      if (!p) return;
+      p.x = r.x + r.w / 2;
+      p.y = r.y + r.h / 2;
     });
     refresh();
   },

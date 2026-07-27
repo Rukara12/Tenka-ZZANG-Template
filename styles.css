@@ -356,7 +356,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .item.filled .item-dot { background: var(--sel); }
 .item.overflow .item-dot { background: #ff7a5c; }
-.item.overflow .item-sub::after { content: ' · 칸 넘침'; color: #ff7a5c; }
+.item.overflow .item-sub::after { content: ' · 말풍선 넘침'; color: #ff7a5c; }
 
 .item-body { flex: 1; min-width: 0; }
 .item-name { font-size: 12.5px; font-weight: 500; }
@@ -461,6 +461,8 @@ select { cursor: pointer; }
 
 .row-2, .row-3 { display: grid; gap: 6px; margin-top: 10px; }
 .row-2 { grid-template-columns: 1fr 1fr; }
+/* 버튼 하나가 숨을 때 남은 칸이 반쪽으로 남지 않게 */
+.row-2.one { grid-template-columns: 1fr; }
 .row-3 { grid-template-columns: 1fr 1fr 1fr; }
 .row-3 .ghost-btn { padding: 7px 4px; font-size: 11.5px; }
 

@@ -1,8 +1,7 @@
 // 텍스트 편집은 캔버스에 직접 구현하지 않고, 투명한 <textarea>를 정확히 겹쳐서 처리한다.
 // 커서·선택·되돌리기·그리고 무엇보다 한글 조합(IME)을 브라우저가 그대로 처리하게 하려는 것.
 
-import { LIMITS } from './config.js';
-import { textBox } from './renderer.js';
+import { textBox, fitTextSize } from './renderer.js';
 import { wrap } from './text.js';
 
 export class TextEditor {
@@ -73,9 +72,8 @@ export class TextEditor {
     const vs = this.viewScale();
     const ctx = this.hooks.measureCtx();
 
-    const size = ts.auto
-      ? fitAuto(ctx, ts.text, st.font, box)
-      : ts.size;
+    // 캔버스 렌더와 같은 함수를 써야 편집창과 실제 글자가 어긋나지 않는다.
+    const size = ts.auto ? fitTextSize(ctx, this.key, st) : ts.size;
     const m = wrap(ctx, ts.text, size, st.font, box.w);
 
     const s = this.ta.style;
@@ -89,15 +87,4 @@ export class TextEditor {
     s.color = ts.color || '#000';
     s.paddingTop = `${Math.max(0, (box.h - m.height) / 2) * vs}px`;
   }
-}
-
-function fitAuto(ctx, text, family, box) {
-  let lo = LIMITS.minFontSize, hi = LIMITS.maxFontSize, best = lo;
-  while (lo <= hi) {
-    const mid = Math.floor((lo + hi) / 2);
-    const m = wrap(ctx, text, mid, family, box.w);
-    if (m.height <= box.h && m.width <= box.w) { best = mid; lo = mid + 1; }
-    else hi = mid - 1;
-  }
-  return best;
 }

@@ -70,7 +70,8 @@
 
       <label class="field">
         <span class="field-label">크기 <b id="slot-scale-val">100%</b></span>
-        <input type="range" id="slot-scale" min="2" max="600" step="1" value="100">
+        <!-- 로그 눈금. 눈금값 0~1000 을 ui.js 가 배율로 옮긴다. -->
+        <input type="range" id="slot-scale" min="0" max="1000" step="1" value="566">
       </label>
 
       <label class="field">
@@ -78,10 +79,15 @@
         <input type="range" id="slot-angle" min="0" max="359" step="1" value="0">
       </label>
 
-      <div class="row-3">
+      <div class="row-2">
         <button type="button" class="ghost-btn" id="slot-rot90">90° 돌리기</button>
         <button type="button" class="ghost-btn" id="slot-flip">좌우 뒤집기</button>
-        <button type="button" class="ghost-btn" id="slot-fit">칸에 맞추기</button>
+      </div>
+
+      <!-- 로고 칸에서는 통째로 숨긴다 (ui.js) -->
+      <div class="row-2" id="slot-fit-row">
+        <button type="button" class="ghost-btn" id="slot-fit" title="칸을 가득 채웁니다. 사진 일부가 잘립니다.">칸 채우기</button>
+        <button type="button" class="ghost-btn" id="slot-center" title="크기는 그대로 두고 가운데로 옮깁니다.">가운데로</button>
       </div>
 
       <div class="meta" id="slot-meta"></div>
@@ -149,14 +155,19 @@
         <input type="range" id="text-width" min="40" max="1024" step="1" value="215">
       </label>
 
+      <label class="field">
+        <span class="field-label">칸 높이 <b id="text-height-val">330</b></span>
+        <input type="range" id="text-height" min="40" max="765" step="1" value="330">
+      </label>
+
       <label class="field inline">
         <span class="field-label">글자 색</span>
         <input type="color" id="text-color" value="#000000">
       </label>
 
       <div class="notice" id="text-overflow" hidden>
-        <span>문구가 칸을 넘칩니다. 저장하면 사진 위로 흘러나갑니다.</span>
-        <button type="button" class="ghost-btn" id="text-fit">칸에 맞추기</button>
+        <span>문구가 말풍선 밖으로 나갑니다.</span>
+        <button type="button" class="ghost-btn" id="text-fit">말풍선에 맞추기</button>
       </div>
 
       <button type="button" class="ghost-btn wide" id="text-reset">위치·크기 되돌리기</button>

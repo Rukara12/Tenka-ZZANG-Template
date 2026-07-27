@@ -1,16 +1,48 @@
 // 인스펙터 패널. 선택한 대상의 컨트롤만 보여주는 게 원칙 —
 // 원본 에디터처럼 아코디언 6개를 늘어놓고 뒤지게 하지 않는다.
 
-import { SLOTS, SLOT_MAP, TEXTS, TEXT_MAP, LIMITS } from './config.js';
+import { SLOTS, SLOT_MAP, TEXTS, TEXT_MAP, LIMITS, defaultPlacement } from './config.js';
 import { getAsset } from './assets.js';
-import { textOverflows, textBox } from './renderer.js';
-import { fitSize } from './text.js';
+import { visibleRect } from './mask.js';
+import { textOverflows, fitTextToBubble } from './renderer.js';
 import { planExport, sceneTiming, videoSupport, formatBytes } from './exporter.js';
 
 const $ = (id) => document.getElementById(id);
 
 // 글자 폭 계산 전용. 화면에 그리지는 않는다.
 const measure = document.createElement('canvas').getContext('2d');
+
+/* ---------- 크기 슬라이더 ---------- */
+
+// 두 가지를 같이 해결해야 한다.
+//
+// (1) 눈금이 로그여야 한다. 선형이면 손잡이 1px 이 어디서나 '같은 퍼센트포인트'를
+//     움직이므로, 37% 근처에서는 한 번 밀 때 6% 씩 튀고 500% 근처에서는 지나치게
+//     잘게 움직인다. 로그면 어디서 밀어도 같은 비율만큼 바뀐다.
+//
+// (2) 범위가 사진마다 달라야 한다. 필요한 배율이 1.8%~1631% 까지 벌어지는데
+//     이걸 한 슬라이더에 다 담으면 실제로 쓰는 구간이 손잡이의 15% 로 눌린다.
+//     그래서 '칸에 맞춘 배율'을 가운데 두고 그 8배 위아래만 담는다.
+//     휠로 그 밖까지 키웠다면 범위를 그만큼 넓혀서, 슬라이더가 값을 잘라내
+//     사진이 갑자기 튀는 일이 없게 한다.
+const SCALE_TICKS = 1000;
+let scaleRange = { lo: LIMITS.minScale, hi: LIMITS.maxScale };
+
+function setScaleRange(fit, current) {
+  const lo = Math.max(LIMITS.minScale, Math.min(fit / 8, current));
+  const hi = Math.min(LIMITS.maxScale, Math.max(fit * 8, current));
+  scaleRange = { lo, hi: Math.max(hi, lo * 1.5) };
+}
+
+const scaleFromTick = (t) =>
+  scaleRange.lo * Math.pow(scaleRange.hi / scaleRange.lo, t / SCALE_TICKS);
+
+const tickFromScale = (s) => {
+  const { lo, hi } = scaleRange;
+  const v = Math.min(hi, Math.max(lo, s || lo));
+  return Math.round((SCALE_TICKS * Math.log(v / lo)) / Math.log(hi / lo));
+};
+
 
 export function toast(message, kind = '') {
   const box = $('toasts');
@@ -104,12 +136,14 @@ export class UI {
 
     this._slider('slot-scale', (v) => {
       const k = slotKey(); if (!k || !this.state.slots[k]) return;
-      this.editor.update((s) => { s.slots[k].scale = v / 100; }, { coalesce: `ui-scale:${k}` });
+      this.editor.update((s) => { s.slots[k].scale = scaleFromTick(v); }, { coalesce: `ui-scale:${k}` });
     });
     this._slider('slot-angle', (v) => {
       const k = slotKey(); if (!k || !this.state.slots[k]) return;
       this.editor.update((s) => { s.slots[k].angle = v; }, { coalesce: `ui-angle:${k}` });
     });
+
+    $('slot-center').addEventListener('click', () => { const k = slotKey(); if (k) this.hooks.onCenterSlot(k); });
 
     // 로고 효과
     this._toggle('fx-outline', 'fx-outline-body', (on) => {
@@ -154,15 +188,22 @@ export class UI {
       const k = textKey(); if (!k) return;
       this.editor.update((s) => { s.texts[k].w = v; }, { coalesce: `ui-width:${k}` });
     });
+    this._slider('text-height', (v) => {
+      const k = textKey(); if (!k) return;
+      this.editor.update((s) => { s.texts[k].h = v; }, { coalesce: `ui-height:${k}` });
+    });
     this._color('text-color', (v) => {
       const k = textKey(); if (!k) return;
       this.editor.update((s) => { s.texts[k].color = v; }, { coalesce: `ui-color:${k}` });
     });
     $('text-fit').addEventListener('click', () => {
       const k = textKey(); if (!k) return;
-      const ts = this.state.texts[k];
-      const size = fitSize(measure, ts.text, this.state.font, textBox(k, ts), LIMITS.minFontSize, LIMITS.maxFontSize);
-      this.editor.update((s) => { s.texts[k].size = size; s.texts[k].auto = false; });
+      const fit = fitTextToBubble(measure, k, this.state);
+      this.editor.update((s) => {
+        Object.assign(s.texts[k], {
+          size: fit.size, dx: fit.dx, dy: fit.dy, w: fit.w, h: fit.h, auto: false,
+        });
+      });
       this.sync();
       this.hooks.onDirty();
     });
@@ -170,7 +211,9 @@ export class UI {
       const key = textKey(); if (!key) return;
       const def = TEXT_MAP[key];
       this.editor.update((s) => {
-        Object.assign(s.texts[key], { dx: 0, dy: 0, w: def.box.w, size: def.size, auto: false });
+        Object.assign(s.texts[key], {
+          dx: 0, dy: 0, w: def.box.w, h: def.box.h, size: def.size, auto: false,
+        });
       });
       this.sync();
       this.hooks.onDirty();
@@ -280,10 +323,20 @@ export class UI {
     const p = this.state.slots[key];
     $('slot-title').textContent = SLOT_MAP[key].label;
     $('logo-effects').hidden = key !== 'logo';
+    // 로고는 구멍에 끼우는 게 아니라 그림 위에 얹는 것이라 '칸 채우기'가 의미 없다.
+    // '가운데로'는 자리만 잡는 것이라 로고에서도 쓸모가 있어 남긴다.
+    const logo = key === 'logo';
+    $('slot-fit').hidden = logo;
+    $('slot-fit-row').classList.toggle('one', logo);
 
     if (!p) return;
     const asset = getAsset(p.asset);
-    setSlider('slot-scale', Math.round(p.scale * 100));
+    // 슬라이더 범위를 이 사진의 '칸에 맞춘 배율' 기준으로 다시 잡는다.
+    if (asset) {
+      const fit = defaultPlacement(key, asset.width, asset.height, visibleRect(key)).scale;
+      setScaleRange(fit, p.scale);
+    }
+    setSlider('slot-scale', tickFromScale(p.scale));
     setSlider('slot-angle', Math.round(p.angle || 0));
     $('slot-meta').innerHTML = asset
       ? `원본 ${asset.width}×${asset.height} · 화면 ${Math.round(asset.width * p.scale)}×${Math.round(asset.height * p.scale)}`
@@ -313,6 +366,7 @@ export class UI {
     $('text-size').disabled = !!ts.auto;
     setSlider('text-size', Math.round(ts.size));
     setSlider('text-width', Math.round(ts.w));
+    setSlider('text-height', Math.round(ts.h || TEXT_MAP[key].box.h));
     $('text-color').value = ts.color || '#000000';
     $('text-overflow').hidden = !textOverflows(measure, key, this.state);
     const moved = ts.dx || ts.dy;
@@ -341,7 +395,11 @@ function setSlider(id, v) {
 }
 
 function formatVal(id, v) {
-  if (id === 'slot-scale') return `${Math.round(v)}%`;
+  // 눈금값이 아니라 실제 배율을 보여준다.
+  if (id === 'slot-scale') {
+    const s = scaleFromTick(v) * 100;
+    return s < 10 ? `${s.toFixed(1)}%` : `${Math.round(s)}%`;
+  }
   if (id === 'slot-angle') return `${Math.round(v)}°`;
   if (id === 'fx-outline-w') return Number(v).toFixed(1);
   return String(Math.round(v));
