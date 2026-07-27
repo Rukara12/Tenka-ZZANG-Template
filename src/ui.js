@@ -499,7 +499,7 @@ export class ExportDialog {
     } finally {
       this.busy = false;
       btn.disabled = false;
-      btn.textContent = '색 수별 용량 재보기';
+      btn.textContent = '용량 측정';
       $('ex-run').disabled = false;
     }
   }
