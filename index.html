@@ -148,6 +148,11 @@
         <input type="color" id="text-color" value="#000000">
       </label>
 
+      <div class="notice" id="text-overflow" hidden>
+        <span>문구가 칸을 넘칩니다. 저장하면 사진 위로 흘러나갑니다.</span>
+        <button type="button" class="ghost-btn" id="text-fit">칸에 맞추기</button>
+      </div>
+
       <button type="button" class="ghost-btn wide" id="text-reset">위치·크기 되돌리기</button>
       <div class="meta" id="text-meta"></div>
     </section>
@@ -228,6 +233,11 @@
     </div>
 
     <div class="estimate" id="ex-estimate"></div>
+
+    <div id="ex-measure-wrap">
+      <button type="button" class="ghost-btn wide" id="ex-measure">색 수별 용량 재보기</button>
+      <div class="size-table" id="ex-sizes" hidden></div>
+    </div>
 
     <div class="progress" id="ex-progress" hidden>
       <div class="progress-track"><div class="progress-fill" id="ex-progress-fill"></div></div>
