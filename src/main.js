@@ -8,7 +8,7 @@ import { drawScene, clearOutlineCache } from './renderer.js';
 import { Interactor } from './interact.js';
 import { TextEditor } from './textedit.js';
 import { UI, ExportDialog, toast } from './ui.js';
-import { exportPng, exportGif, exportVideo } from './exporter.js';
+import { exportPng, exportGif, exportVideo, estimateGifSizes, measurePng } from './exporter.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -99,6 +99,7 @@ function tick(ts) {
     dim,
     preview: true,
     hovered: interactor?.hovered,
+    selected: interactor?.selection || null,
     editingText: textEditor?.active ? textEditor.key : null,
   });
   interactor?.paint();
@@ -209,7 +210,7 @@ const interactor = new Interactor($('handles'), editor, {
   },
   onRequestUpload: requestUpload,
   onEditText: (key) => textEditor.start(key),
-  onChange: () => { markDirty(); ui.sync(); },
+  onChange: () => { markDirty(); queueSync(); },
 });
 
 const textEditor = new TextEditor(
@@ -217,13 +218,17 @@ const textEditor = new TextEditor(
   editor,
   () => stage.getBoundingClientRect().width / CANVAS.w,
   {
-    onChange: () => { markDirty(); ui.sync(); },
+    onChange: () => { markDirty(); queueSync(); },
     onDone: () => markDirty(),
     measureCtx: () => measure,
   },
 );
 
 const exportDialog = new ExportDialog(editor, {
+  onMeasure: async (format, opts, cb) => {
+    if (format === 'png') return measurePng(editor.state, overlayImg, opts);
+    return estimateGifSizes(editor.state, overlayImg, { ...opts, ...cb });
+  },
   onRun: async (format, opts, cb) => {
     const wasEditing = textEditor.active;
     if (wasEditing) textEditor.finish();
@@ -247,7 +252,17 @@ function refresh() {
   markDirty();
 }
 
-editor.addEventListener('change', () => { markDirty(); scheduleSave(); });
+// 상태가 바뀌면 인스펙터도 따라와야 한다 — 특히 문구 넘침 경고는 슬라이더를
+// 끄는 동안 실시간으로 갱신돼야 의미가 있다. 드래그 중엔 매 프레임 호출되므로
+// 프레임당 한 번으로 묶어 DOM 쓰기를 제한한다.
+let syncQueued = false;
+function queueSync() {
+  if (syncQueued) return;
+  syncQueued = true;
+  requestAnimationFrame(() => { syncQueued = false; ui.sync(); });
+}
+
+editor.addEventListener('change', () => { markDirty(); queueSync(); scheduleSave(); });
 editor.addEventListener('history', (e) => ui.setHistory(e.detail));
 
 /* ---------- 전역 입력 ---------- */

@@ -167,6 +167,53 @@ function drawLogo(ctx, state, time, scale) {
   ctx.restore();
 }
 
+/**
+ * 선택된 사진의 '칸 밖으로 잘려나가는 부분'을 옅게 보여준다.
+ * 이게 없으면 사진을 옮길 때 무엇이 잘리는지 모르는 채로 감으로 맞춰야 한다.
+ */
+function drawCropGhost(ctx, slotKey, state, time) {
+  const p = state.slots[slotKey];
+  const asset = getAsset(p?.asset);
+  if (!asset) return;
+  const bitmap = frameAt(asset, time);
+  if (!bitmap) return;
+
+  const rect = SLOT_MAP[slotKey].rect;
+  const w = asset.width * p.scale;
+  const h = asset.height * p.scale;
+
+  ctx.save();
+  // 캔버스 전체에서 칸 사각형을 빼낸 영역 (evenodd) — 칸 안은 이미 제대로 그려져 있다.
+  ctx.beginPath();
+  ctx.rect(0, 0, CANVAS.w, CANVAS.h);
+  ctx.rect(rect.x, rect.y, rect.w, rect.h);
+  ctx.clip('evenodd');
+  ctx.globalAlpha = 0.26;
+  ctx.translate(p.x, p.y);
+  if (p.angle) ctx.rotate((p.angle * Math.PI) / 180);
+  if (p.flip) ctx.scale(-1, 1);
+  ctx.drawImage(bitmap, -w / 2, -h / 2, w, h);
+  ctx.restore();
+
+  // 잘리는 경계
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(70, 216, 232, 0.9)';
+  ctx.strokeRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2);
+  ctx.restore();
+}
+
+/** 문구가 칸을 넘쳤을 때 표시하는 테두리. */
+function drawOverflowMark(ctx, box) {
+  ctx.save();
+  ctx.setLineDash([7, 5]);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255, 122, 92, 0.95)';
+  ctx.strokeRect(box.x + 1, box.y + 1, box.w - 2, box.h - 2);
+  ctx.restore();
+}
+
 function drawPlaceholders(ctx, state, hovered) {
   for (const slot of SLOTS) {
     if (state.slots[slot.key]) continue;
@@ -209,7 +256,7 @@ function drawPlaceholders(ctx, state, hovered) {
  * @param {string} [o.hovered]
  */
 export function drawScene(ctx, o) {
-  const { state, time = 0, scale = 1, overlay, dim = 0, preview = false, hovered = null, editingText = null } = o;
+  const { state, time = 0, scale = 1, overlay, dim = 0, preview = false, hovered = null, editingText = null, selected = null } = o;
 
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.clearRect(0, 0, CANVAS.w, CANVAS.h);
@@ -232,6 +279,7 @@ export function drawScene(ctx, o) {
 
   ctx.save();
   ctx.globalAlpha = 1 - dim * 0.85;
+  const overflowed = [];
   for (const t of TEXTS) {
     if (editingText === t.key) continue;
     const ts = state.texts[t.key];
@@ -240,9 +288,15 @@ export function drawScene(ctx, o) {
     const size = ts.auto
       ? fitSize(ctx, ts.text, state.font, box, LIMITS.minFontSize, LIMITS.maxFontSize)
       : ts.size;
-    drawText(ctx, ts.text, size, state.font, box, ts.color || '#000000');
+    const m = drawText(ctx, ts.text, size, state.font, box, ts.color || '#000000');
+    if (preview && m.height > box.h + 1) overflowed.push(box);
   }
   ctx.restore();
+
+  if (preview) {
+    for (const box of overflowed) drawOverflowMark(ctx, box);
+    if (selected?.type === 'slot') drawCropGhost(ctx, selected.key, state, time);
+  }
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }

@@ -2,7 +2,7 @@
 // 프레임 시각을 프리뷰와 똑같이 계산하므로 "미리보기와 결과물이 다른" 문제가 없다.
 
 import { CANVAS, LIMITS } from './config.js';
-import { getAsset, workerCall, workerAvailable } from './assets.js';
+import { getAsset, frameIndexAt, workerCall, workerAvailable } from './assets.js';
 import { drawScene } from './renderer.js';
 import { sampleColors, buildPalette, GifStream } from './gif/encoder.js';
 
@@ -94,6 +94,146 @@ export async function exportPng(state, overlay, { scale = 1 } = {}) {
   return { size: blob.size };
 }
 
+/* ---------- 팔레트 표본 (내보내기와 용량 추정이 공유) ---------- */
+
+/**
+ * 고르게 뽑은 몇 장에서만 색을 모은다. 축소 렌더라 메모리가 가볍다.
+ * @returns {Promise<Uint8Array|null>} 취소되면 null
+ */
+async function collectSamples(state, overlay, plan, sceneTime, onProgress, isCancelled) {
+  const probeCount = Math.min(plan.frames, 14);
+  const probeScale = Math.min(1, 512 / CANVAS.w);
+  const pw = Math.round(CANVAS.w * probeScale);
+  const ph = Math.round(CANVAS.h * probeScale);
+  const ctx = makeCanvas(pw, ph).getContext('2d', { willReadFrequently: true });
+  const probes = [];
+  for (let i = 0; i < probeCount; i++) {
+    const idx = Math.floor((i * plan.frames) / probeCount);
+    drawScene(ctx, { state, time: sceneTime(idx), scale: probeScale, overlay });
+    probes.push(ctx.getImageData(0, 0, pw, ph).data);
+    onProgress?.({ phase: 'palette', ratio: (i + 1) / probeCount });
+    if (isCancelled?.()) return null;
+    await tick();
+  }
+  const samples = sampleColors(probes, 120000);
+  probes.length = 0;
+  return samples;
+}
+
+/* ---------- 용량 추정 ---------- */
+
+/** PNG 는 한 장이므로 실제로 만들어 정확한 크기를 잰다. */
+export async function measurePng(state, overlay, { scale = 1 } = {}) {
+  const w = Math.round(CANVAS.w * scale);
+  const h = Math.round(CANVAS.h * scale);
+  const ctx = makeCanvas(w, h).getContext('2d');
+  drawScene(ctx, { state, time: 0, scale, overlay });
+  const blob = await canvasToBlob(ctx.canvas, 'image/png');
+  return blob.size;
+}
+
+/**
+ * 출력 프레임 중 실제로 기록되는 장수를 렌더링 없이 센다.
+ *
+ * 출력 fps 와 원본 fps 가 다르면 연속 두 프레임이 같은 원본 프레임을 가리키는 일이
+ * 생기고, 그런 프레임은 인코더가 병합해 버려 용량을 차지하지 않는다.
+ * 이걸 빼지 않으면 용량이 10% 넘게 과대 추정된다.
+ */
+function countWrittenFrames(state, plan, sceneTime) {
+  const assets = Object.keys(state.slots)
+    .map((k) => getAsset(state.slots[k]?.asset))
+    .filter((a) => a && a.frames.length > 1);
+  if (!assets.length) return 1;
+
+  const sigAt = (i) => assets.map((a) => frameIndexAt(a, sceneTime(i))).join(',');
+  let written = 1;
+  let prev = sigAt(0);
+  for (let i = 1; i < plan.frames; i++) {
+    const cur = sigAt(i);
+    if (cur !== prev) written++;
+    prev = cur;
+  }
+  return written;
+}
+
+/**
+ * 색 수별 GIF 예상 용량을 잰다.
+ *
+ * 키프레임 비용은 첫 프레임에서, 차분 비용은 타임라인 여러 지점에서 '연속된 두 장'을
+ * 인코딩해 잰다. 띄엄띄엄 뽑으면 프레임 간 차이가 실제보다 커져 과대 추정되므로
+ * 반드시 이웃한 쌍이어야 하고, 한 구간만 보면 그 구간 특성에 치우치므로 여러 곳에서 뽑는다.
+ *
+ * @returns {Promise<{plan:object, rows:Array<{colors:number, bytes:number}>}|null>}
+ */
+export async function estimateGifSizes(state, overlay, o) {
+  const { scale = 1, fps, speed = 1, colorOptions = [64, 128, 255], onProgress, isCancelled } = o;
+  const plan = planExport(state, { fps, speed, scale });
+  if (!plan.animated) return null;
+
+  const w = plan.width, h = plan.height;
+  const ctx = makeCanvas(w, h).getContext('2d', { willReadFrequently: true });
+  const frameDelay = 1000 / plan.fps;
+  const sceneTime = (i) => i * frameDelay * speed;
+
+  const samples = await collectSamples(state, overlay, plan, sceneTime,
+    (p) => onProgress?.({ phase: 'palette', ratio: p.ratio * 0.3 }), isCancelled);
+  if (!samples) return null;
+
+  const written = countWrittenFrames(state, plan, sceneTime);
+
+  // 표본 지점: 타임라인을 고르게 나눈 위치에서 연속 두 장씩
+  const points = scale >= 1.5 ? [0.25, 0.6] : [0.2, 0.45, 0.75];
+  const need = [0];
+  for (const t of points) {
+    const j = Math.min(plan.frames - 2, Math.max(0, Math.floor(t * plan.frames)));
+    if (plan.frames >= 2) need.push(j, j + 1);
+  }
+  const uniq = [...new Set(need)];
+
+  const shots = new Map();
+  for (let n = 0; n < uniq.length; n++) {
+    if (isCancelled?.()) return null;
+    const i = uniq[n];
+    drawScene(ctx, { state, time: sceneTime(i), scale, overlay });
+    shots.set(i, ctx.getImageData(0, 0, w, h).data);
+    onProgress?.({ phase: 'measure', ratio: 0.3 + ((n + 1) / uniq.length) * 0.25 });
+    await tick();
+  }
+
+  const rows = [];
+  for (let c = 0; c < colorOptions.length; c++) {
+    if (isCancelled?.()) { shots.clear(); return null; }
+    const colors = colorOptions[c];
+    const palette = buildPalette(samples, colors);
+
+    // 키프레임 비용 (헤더·팔레트 포함)
+    const head = new GifStream({ width: w, height: h, palette, diff: true });
+    head.addRGBA(shots.get(0), frameDelay);
+    const keyBytes = head.byteLength;
+
+    // 차분 비용
+    let diffTotal = 0, diffCount = 0;
+    for (const t of points) {
+      const j = Math.min(plan.frames - 2, Math.max(0, Math.floor(t * plan.frames)));
+      if (plan.frames < 2 || !shots.has(j) || !shots.has(j + 1)) continue;
+      const e = new GifStream({ width: w, height: h, palette, diff: true });
+      e.addRGBA(shots.get(j), frameDelay);
+      const before = e.byteLength;
+      if (e.addRGBA(shots.get(j + 1), frameDelay)) {
+        diffTotal += e.byteLength - before;
+        diffCount++;
+      }
+    }
+    const perDiff = diffCount ? diffTotal / diffCount : 0;
+    rows.push({ colors, bytes: Math.round(keyBytes + perDiff * Math.max(0, written - 1) + 1) });
+
+    onProgress?.({ phase: 'measure', ratio: 0.55 + ((c + 1) / colorOptions.length) * 0.45 });
+    await tick();
+  }
+  shots.clear();
+  return { plan, rows };
+}
+
 /* ---------- GIF ---------- */
 
 /**
@@ -111,24 +251,9 @@ export async function exportGif(state, overlay, o) {
   const frameDelay = 1000 / plan.fps;
   const sceneTime = (i) => i * frameDelay * speed;
 
-  // 1) 팔레트용 표본 — 전체를 두 번 그리지 않고 고르게 뽑은 몇 장에서만 색을 모은다.
-  const probeCount = Math.min(plan.frames, 14);
-  const probeScale = Math.min(scale, 512 / CANVAS.w);
-  const pw = Math.round(CANVAS.w * probeScale);
-  const ph = Math.round(CANVAS.h * probeScale);
-  const probeCanvas = makeCanvas(pw, ph);
-  const probeCtx = probeCanvas.getContext('2d', { willReadFrequently: true });
-  const probes = [];
-  for (let i = 0; i < probeCount; i++) {
-    const idx = Math.floor((i * plan.frames) / probeCount);
-    drawScene(probeCtx, { state, time: sceneTime(idx), scale: probeScale, overlay });
-    probes.push(probeCtx.getImageData(0, 0, pw, ph).data);
-    onProgress?.({ phase: 'palette', ratio: (i + 1) / probeCount });
-    if (isCancelled?.()) return null;
-    await tick();
-  }
-  const samples = sampleColors(probes, 120000);
-  probes.length = 0;
+  // 1) 팔레트용 표본
+  const samples = await collectSamples(state, overlay, plan, sceneTime, onProgress, isCancelled);
+  if (!samples) return null;
 
   let palette;
   const useWorker = workerAvailable();

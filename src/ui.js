@@ -3,9 +3,14 @@
 
 import { SLOTS, SLOT_MAP, TEXTS, TEXT_MAP, LIMITS } from './config.js';
 import { getAsset } from './assets.js';
+import { textOverflows, textBox } from './renderer.js';
+import { fitSize } from './text.js';
 import { planExport, sceneTiming, videoSupport, formatBytes } from './exporter.js';
 
 const $ = (id) => document.getElementById(id);
+
+// 글자 폭 계산 전용. 화면에 그리지는 않는다.
+const measure = document.createElement('canvas').getContext('2d');
 
 export function toast(message, kind = '') {
   const box = $('toasts');
@@ -153,6 +158,14 @@ export class UI {
       const k = textKey(); if (!k) return;
       this.editor.update((s) => { s.texts[k].color = v; }, { coalesce: `ui-color:${k}` });
     });
+    $('text-fit').addEventListener('click', () => {
+      const k = textKey(); if (!k) return;
+      const ts = this.state.texts[k];
+      const size = fitSize(measure, ts.text, this.state.font, textBox(k, ts), LIMITS.minFontSize, LIMITS.maxFontSize);
+      this.editor.update((s) => { s.texts[k].size = size; s.texts[k].auto = false; });
+      this.sync();
+      this.hooks.onDirty();
+    });
     $('text-reset').addEventListener('click', () => {
       const key = textKey(); if (!key) return;
       const def = TEXT_MAP[key];
@@ -237,6 +250,7 @@ export class UI {
       const btn = document.querySelector(`[data-text="${t.key}"]`);
       const ts = st.texts[t.key];
       btn.classList.toggle('filled', !!ts.text.trim());
+      btn.classList.toggle('overflow', !!ts.text.trim() && textOverflows(measure, t.key, st));
       btn.querySelector('[data-sub]').textContent = ts.text.trim()
         ? ts.text.replace(/\s+/g, ' ').slice(0, 30)
         : '비어 있음';
@@ -300,6 +314,7 @@ export class UI {
     setSlider('text-size', Math.round(ts.size));
     setSlider('text-width', Math.round(ts.w));
     $('text-color').value = ts.color || '#000000';
+    $('text-overflow').hidden = !textOverflows(measure, key, this.state);
     const moved = ts.dx || ts.dy;
     $('text-meta').textContent = moved ? `기본 위치에서 ${Math.round(ts.dx)}, ${Math.round(ts.dy)} 만큼 옮김` : '';
   }
@@ -351,9 +366,12 @@ export class ExportDialog {
         this.refresh();
       });
     }
-    for (const id of ['ex-scale', 'ex-fps', 'ex-speed', 'ex-colors']) {
-      $(id).addEventListener('change', () => this.refresh());
+    for (const id of ['ex-scale', 'ex-fps', 'ex-speed']) {
+      // 이 값들이 바뀌면 재본 용량은 더 이상 유효하지 않다.
+      $(id).addEventListener('change', () => { this.clearSizes(); this.refresh(); });
     }
+    $('ex-colors').addEventListener('change', () => { this.markSelectedSize(); this.refresh(); });
+    $('ex-measure').addEventListener('click', () => this.measure());
     $('ex-cancel').addEventListener('click', () => {
       if (this.busy) { this.cancelled = true; return; }
       this.dlg.close();
@@ -384,6 +402,7 @@ export class ExportDialog {
     for (const b of document.querySelectorAll('.seg-btn')) b.classList.toggle('is-on', b.dataset.fmt === this.format);
 
     $('ex-progress').hidden = true;
+    this.clearSizes();
     this.busy = false;
     this.cancelled = false;
     $('ex-cancel').textContent = '닫기';
@@ -424,6 +443,86 @@ export class ExportDialog {
       lines.push(`영상은 실시간으로 녹화하므로 약 ${(plan.duration / 1000).toFixed(1)}초 걸립니다.`);
     }
     box.innerHTML = lines.join('<br>');
+  }
+
+  clearSizes() {
+    const box = $('ex-sizes');
+    box.hidden = true;
+    box.innerHTML = '';
+  }
+
+  markSelectedSize() {
+    const cur = parseInt($('ex-colors').value, 10);
+    for (const row of $('ex-sizes').querySelectorAll('.size-row')) {
+      row.classList.toggle('is-on', parseInt(row.dataset.colors, 10) === cur);
+    }
+  }
+
+  /** 색 수별 예상 용량을 실제로 재서 표로 보여준다. */
+  async measure() {
+    if (this.busy) return;
+    const btn = $('ex-measure');
+    this.busy = true;
+    this.cancelled = false;
+    btn.disabled = true;
+    btn.textContent = '재는 중…';
+    $('ex-run').disabled = true;
+
+    try {
+      const o = this.options();
+
+      if (this.format === 'png') {
+        const size = await this.hooks.onMeasure('png', o, {});
+        $('ex-sizes').hidden = false;
+        $('ex-sizes').innerHTML =
+          `<div class="size-caption">PNG 한 장 <b style="color:var(--fg)">${formatBytes(size)}</b> — 실제로 만들어 잰 값입니다.</div>`;
+        return;
+      }
+
+      if (this.format === 'video') {
+        const plan = planExport(this.editor.state, o);
+        const bits = Math.round(plan.width * plan.height * plan.fps * 0.12);
+        const bytes = Math.round((bits * plan.duration) / 1000 / 8);
+        $('ex-sizes').hidden = false;
+        $('ex-sizes').innerHTML =
+          `<div class="size-caption">영상 약 <b style="color:var(--fg)">${formatBytes(bytes)}</b> — 화면 내용에 따라 달라집니다.</div>`;
+        return;
+      }
+
+      const result = await this.hooks.onMeasure('gif', o, {
+        onProgress: ({ ratio }) => { btn.textContent = `재는 중… ${Math.round(ratio * 100)}%`; },
+        isCancelled: () => this.cancelled,
+      });
+      if (result) this.renderSizes(result);
+    } catch (err) {
+      toast(err.message || '용량을 재지 못했습니다.', 'bad');
+    } finally {
+      this.busy = false;
+      btn.disabled = false;
+      btn.textContent = '색 수별 용량 재보기';
+      $('ex-run').disabled = false;
+    }
+  }
+
+  renderSizes({ plan, rows }) {
+    const labels = { 64: '거침', 128: '보통', 255: '선명' };
+    const cur = parseInt($('ex-colors').value, 10);
+    const box = $('ex-sizes');
+    box.hidden = false;
+    box.innerHTML =
+      rows.map((r) => `<button type="button" class="size-row${r.colors === cur ? ' is-on' : ''}" data-colors="${r.colors}">`
+        + `<span>${r.colors}색</span><span class="size-note">${labels[r.colors] || ''}</span>`
+        + `<b>${formatBytes(r.bytes)}</b></button>`).join('')
+      + `<div class="size-caption">${plan.width}×${plan.height} · ${plan.frames}프레임 기준 예상값입니다.`
+      + ` 실제 크기는 조금 다를 수 있습니다. 더 줄이려면 위의 크기를 낮추세요.</div>`;
+
+    for (const row of box.querySelectorAll('.size-row')) {
+      row.addEventListener('click', () => {
+        $('ex-colors').value = row.dataset.colors;
+        this.markSelectedSize();
+        this.refresh();
+      });
+    }
   }
 
   async run() {
