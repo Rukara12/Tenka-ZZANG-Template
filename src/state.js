@@ -2,7 +2,7 @@
 // 핵심: 이미지 바이너리는 절대 상태에 넣지 않는다. 에셋 ID만 담으므로
 // 스냅샷 하나가 1KB 안팎이고, 따라서 깊은 되돌리기가 공짜에 가깝다.
 
-import { defaultState } from './config.js';
+import { defaultState, migrateState } from './config.js';
 
 const HISTORY_LIMIT = 200;
 const COALESCE_MS = 700;
@@ -90,9 +90,13 @@ export class Editor extends EventTarget {
     this.emit('history', this.historyInfo());
   }
 
-  /** 저장된 상태로 통째 교체 (자동 복구용). */
+  /**
+   * 저장된 상태로 통째 교체 (자동 복구용).
+   * 얕은 병합이 아니라 migrateState 를 거친다 — config.js 의 SLOTS·TEXTS 가
+   * 늘어나도 기존 저장본이 앱을 깨뜨리지 않게 하려는 것.
+   */
   load(state) {
-    this.state = { ...defaultState(), ...state };
+    this.state = migrateState(state);
     this.history = [JSON.stringify(this.state)];
     this.step = 0;
     this.seal();

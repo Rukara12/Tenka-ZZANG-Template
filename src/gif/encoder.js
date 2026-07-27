@@ -265,6 +265,7 @@ export class GifStream {
     this.byteLength = 0;
     this._lastGce = null;
     this._lastCs = 0;
+    this._carry = 0; // 센티초 반올림에서 버려진 시간(ms). 다음 프레임으로 넘긴다.
 
     const st = new ByteStream();
     st.ascii('GIF89a');
@@ -343,8 +344,7 @@ export class GifStream {
       }
     }
 
-    let cs = Math.round(delayMs / 10);
-    if (cs < 2) cs = 2;
+    const cs = this._takeCs(delayMs, 2);
 
     // GCE 를 따로 보관해 두면 나중에 딜레이만 덧쓸 수 있다.
     const gce = new Uint8Array([
@@ -371,9 +371,28 @@ export class GifStream {
     return true;
   }
 
+  /**
+   * ms 를 GIF 단위(센티초)로 바꾸되, 반올림에서 버려진 시간을 다음 호출로 넘긴다.
+   *
+   * 프레임마다 독립적으로 반올림하면 30fps(33.33ms)가 3cs=30ms 가 되어 결과물이
+   * 11% 빠르게 재생된다. 오차를 이월하면 3,3,4,3,3,4… 로 나가 평균이 맞는다.
+   *
+   * @param {number} delayMs
+   * @param {number} floor 최소 센티초 (0·1cs 를 10cs 로 해석하는 브라우저가 있어 신규 프레임은 2)
+   */
+  _takeCs(delayMs, floor) {
+    this._carry += delayMs;
+    let cs = Math.round(this._carry / 10);
+    if (cs < floor) cs = floor;
+    this._carry -= cs * 10;
+    // 프레임 대부분이 하한에 걸리는 초고속 소스에서 이월이 폭주하지 않도록 묶어둔다.
+    this._carry = Math.min(500, Math.max(-500, this._carry));
+    return cs;
+  }
+
   _extendLastDelay(delayMs) {
     if (!this._lastGce) return;
-    const cs = Math.min(65535, this._lastCs + Math.max(1, Math.round(delayMs / 10)));
+    const cs = Math.min(65535, this._lastCs + this._takeCs(delayMs, 1));
     this._lastCs = cs;
     this._lastGce[4] = cs & 0xff;
     this._lastGce[5] = (cs >> 8) & 0xff;

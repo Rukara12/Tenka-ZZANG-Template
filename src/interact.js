@@ -4,12 +4,17 @@
 import { CANVAS, SLOT_MAP, TEXTS, LIMITS } from './config.js';
 import { getAsset } from './assets.js';
 import { textBox } from './renderer.js';
+import { wrap, fitSize, fontSpec } from './text.js';
 
 const HANDLE = 9;       // 핸들 반지름(화면 px)
 const HIT_SLOP = 14;    // 핸들 판정 여유
 const ROTATE_ARM = 30;  // 회전 핸들이 상자 위로 떨어진 거리
 
 const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+const TEXT_PAD = 8;     // 글자 주변 여유 (캔버스 좌표)
+
+// 글자 폭 계산 전용. 화면에 그리지 않는다.
+const measure = document.createElement('canvas').getContext('2d');
 
 export class Interactor {
   /**
@@ -113,12 +118,47 @@ export class Interactor {
     return null;
   }
 
+  /**
+   * 문구를 상자가 아니라 '실제로 글자가 그려진 자리'로 판정한다.
+   *
+   * 상자 전체로 잡으면 좌상단 문구 상자(215×330)가 말풍선 슬롯 왼쪽 끝을 덮어
+   * 그 띠에서는 사진을 고를 수 없고, 여백을 눌러 선택을 풀 수도 없다.
+   * 렌더러와 같은 방식으로 줄을 나눠 각 줄의 실제 폭과 비교한다.
+   */
+  textHit(pt, key) {
+    const st = this.state;
+    const ts = st.texts[key];
+    if (!ts || !ts.text.trim()) return false;
+
+    const box = textBox(key, ts);
+    const size = ts.auto
+      ? fitSize(measure, ts.text, st.font, box, LIMITS.minFontSize, LIMITS.maxFontSize)
+      : ts.size;
+    const m = wrap(measure, ts.text, size, st.font, box.w);
+
+    const top = box.y + Math.max(0, (box.h - m.height) / 2);
+    if (pt.y < top - TEXT_PAD || pt.y > top + m.height + TEXT_PAD) return false;
+
+    const row = Math.min(m.lines.length - 1, Math.max(0, Math.floor((pt.y - top) / m.lineHeight)));
+    measure.font = fontSpec(size, st.font);
+    const halfWidth = measure.measureText(m.lines[row]).width / 2;
+    return Math.abs(pt.x - (box.x + box.w / 2)) <= halfWidth + TEXT_PAD;
+  }
+
   hitTarget(pt) {
     const inRect = (r) => pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h;
+
+    // 이미 고른 문구는 상자 전체로 잡는다 — 옮기는 중에 손이 글자에서 벗어나도
+    // 놓치지 않게. (Esc 나 빈 곳 클릭으로 언제든 풀 수 있다)
+    const sel = this.selection;
+    if (sel?.type === 'text' && this.state.texts[sel.key] &&
+        inRect(textBox(sel.key, this.state.texts[sel.key]))) {
+      return sel;
+    }
+
     // 그리는 순서의 역순으로 검사한다.
     for (const t of [...TEXTS].reverse()) {
-      const b = textBox(t.key, this.state.texts[t.key]);
-      if (inRect(b)) return { type: 'text', key: t.key };
+      if (this.textHit(pt, t.key)) return { type: 'text', key: t.key };
     }
     for (const key of ['logo', 'phone', 'bubble']) {
       if (inRect(SLOT_MAP[key].rect)) return { type: 'slot', key };

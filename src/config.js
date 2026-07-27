@@ -66,6 +66,78 @@ export function defaultState() {
   };
 }
 
+/* ---------- 저장본 마이그레이션 ---------- */
+
+const clampNum = (v, fallback, lo, hi) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(hi, Math.max(lo, n));
+};
+
+const okColor = (v, fallback) =>
+  (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : fallback);
+
+/**
+ * 저장된 상태를 현재 스키마에 맞춘다.
+ *
+ * 통째로 얕은 병합을 하면 SLOTS·TEXTS 에 항목을 추가한 순간 기존 사용자의
+ * 저장본에 그 키가 없어 렌더러가 undefined 를 읽고 죽는다. 저장본은 새로고침해도
+ * 다시 읽히므로 사용자가 스스로 빠져나올 수 없다. 그래서 키 단위로 병합하고,
+ * 값 범위도 여기서 한 번 걸러 손상된 저장본이 UI 로 새어 나가지 않게 한다.
+ *
+ * @param {unknown} saved
+ * @returns {object} 항상 완전한 상태
+ */
+export function migrateState(saved) {
+  const base = defaultState();
+  if (!saved || typeof saved !== 'object') return base;
+
+  for (const s of SLOTS) {
+    const p = saved.slots?.[s.key];
+    if (!p || typeof p !== 'object' || !p.asset) continue;
+    base.slots[s.key] = {
+      asset: String(p.asset),
+      x: clampNum(p.x, s.rect.x + s.rect.w / 2, -CANVAS.w * 4, CANVAS.w * 4),
+      y: clampNum(p.y, s.rect.y + s.rect.h / 2, -CANVAS.h * 4, CANVAS.h * 4),
+      scale: clampNum(p.scale, 1, 0.02, 40),
+      angle: clampNum(p.angle, 0, 0, 360),
+      flip: !!p.flip,
+    };
+  }
+
+  for (const t of TEXTS) {
+    const ts = saved.texts?.[t.key];
+    if (!ts || typeof ts !== 'object') continue;
+    const d = base.texts[t.key];
+    base.texts[t.key] = {
+      text: typeof ts.text === 'string' ? ts.text : d.text,
+      size: clampNum(ts.size, d.size, LIMITS.minFontSize, LIMITS.maxFontSize),
+      auto: !!ts.auto,
+      color: okColor(ts.color, d.color),
+      dx: clampNum(ts.dx, 0, -CANVAS.w, CANVAS.w),
+      dy: clampNum(ts.dy, 0, -CANVAS.h, CANVAS.h),
+      w: clampNum(ts.w, d.w, 40, CANVAS.w),
+    };
+  }
+
+  const fx = saved.effects || {};
+  base.effects.shadow = {
+    on: !!fx.shadow?.on,
+    blur: clampNum(fx.shadow?.blur, 10, 0, 60),
+    dx: clampNum(fx.shadow?.dx, 5, -60, 60),
+    dy: clampNum(fx.shadow?.dy, 5, -60, 60),
+    color: okColor(fx.shadow?.color, '#000000'),
+  };
+  base.effects.outline = {
+    on: !!fx.outline?.on,
+    width: clampNum(fx.outline?.width, 2.5, 0, 20),
+    color: okColor(fx.outline?.color, '#000000'),
+  };
+
+  if (typeof saved.font === 'string' && saved.font) base.font = saved.font;
+  return base;
+}
+
 /** 슬롯에 처음 사진이 들어갈 때의 배치값. */
 export function defaultPlacement(slotKey, imgW, imgH) {
   const { rect } = SLOT_MAP[slotKey];
