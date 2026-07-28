@@ -94,6 +94,33 @@ export async function exportPng(state, overlay, { scale = 1 } = {}) {
   return { size: blob.size };
 }
 
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+/**
+ * 보관함 목록에 쓸 작은 미리보기.
+ *
+ * blobs 저장소가 아니라 문자열(dataURL)로 돌려주는 이유가 있다. blobs 는
+ * keepOnly() 로 정리되는데, 거기에 썸네일을 넣으면 '어느 작업물도 사진으로
+ * 참조하지 않는 키'라 정리 때 지워진다. 문서 레코드 안에 값으로 들고 있으면
+ * 그 함정에 걸리지 않는다.
+ *
+ * 배경이 흰색이라 투명도가 필요 없으므로 JPEG 로 뽑는다 — PNG 보다 훨씬 작다.
+ */
+export async function renderThumb(state, overlay, width = 200) {
+  const scale = width / CANVAS.w;
+  const canvas = makeCanvas(Math.round(CANVAS.w * scale), Math.round(CANVAS.h * scale));
+  drawScene(canvas.getContext('2d'), { state, time: 0, scale, overlay });
+  const blob = await canvasToBlob(canvas, 'image/jpeg', 0.72);
+  return blobToDataUrl(blob);
+}
+
 /** 클립보드에 그림을 넣을 수 있는 브라우저인가. */
 export function canCopyImage() {
   return typeof ClipboardItem !== 'undefined' && !!navigator.clipboard?.write;

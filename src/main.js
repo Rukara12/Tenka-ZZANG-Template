@@ -236,14 +236,37 @@ function requestUpload(slotKey) {
 
 /* ---------- 자동 저장 ---------- */
 
+// 자동 저장은 되는데 화면에 아무 표시가 없으면 "닫아도 되나?" 하는 불안이 남는다.
+// 더 중요한 건 실패했을 때다 — 저장소가 막혀 있으면(사생활 보호 모드, 용량 초과)
+// store 가 조용히 포기하므로, 알려주지 않으면 다 날린 뒤에야 알게 된다.
 let saveTimer = null;
+let savedAt = 0;
+let saveState = 'idle'; // idle | saving | saved | failed
+
+function renderSaveState() {
+  const el = $('save-state');
+  if (!el) return;
+  el.classList.toggle('bad', saveState === 'failed');
+  if (saveState === 'failed') { el.textContent = '저장 안 됨 — 브라우저 저장소를 쓸 수 없습니다'; return; }
+  if (saveState === 'saving') { el.textContent = '저장 중…'; return; }
+  if (!savedAt) { el.textContent = ''; return; }
+  const min = Math.floor((Date.now() - savedAt) / 60000);
+  el.textContent = min < 1 ? '방금 저장됨' : min < 60 ? `${min}분 전 저장됨` : '저장됨';
+}
+
 function scheduleSave() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    store.set('state', editor.state);
-    store.set('savedAt', Date.now());
+  if (saveState !== 'failed') { saveState = 'saving'; renderSaveState(); }
+  saveTimer = setTimeout(async () => {
+    const ok = await store.set('state', editor.state);
+    await store.set('savedAt', Date.now());
+    savedAt = Date.now();
+    saveState = ok ? 'saved' : 'failed';
+    renderSaveState();
   }, 900);
 }
+
+setInterval(renderSaveState, 30000);
 
 /** 상태가 가리키는 사진들을 저장소에서 되살린다. @returns 되살리지 못한 개수 */
 async function hydrate(saved) {
@@ -529,6 +552,9 @@ $('btn-reset').addEventListener('click', async () => {
   await store.del('state');
   await store.del('savedAt');
   await pruneAssets();
+  savedAt = 0;
+  if (saveState !== 'failed') saveState = 'idle';
+  renderSaveState();
   clearOutlineCache();
   ui.setFontName('평택 노을체');
   refresh();
@@ -678,6 +704,11 @@ document.addEventListener('visibilitychange', () => { lastTs = 0; markDirty(); }
   } catch { /* 글꼴 없이도 진행 */ }
 
   const restored = await restore();
+  if (restored) {
+    savedAt = (await store.get('savedAt')) || Date.now();
+    saveState = 'saved';
+    renderSaveState();
+  }
   ui.setSelection(null);
   resize();
   refresh();

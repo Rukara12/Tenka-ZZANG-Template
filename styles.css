@@ -118,6 +118,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
   text-overflow: ellipsis;
 }
 
+.save-state {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--fg-mute);
+  white-space: nowrap;
+  transition: color .2s;
+}
+.save-state.bad { color: var(--warn, #ff7a5c); }
+
 .bar-actions {
   display: flex;
   align-items: center;
@@ -823,7 +832,7 @@ kbd {
   .stage-tip { display: none; }
   /* 좁은 화면은 가로에 맞춰 꽉 차므로 배율 조절이 의미가 없다. 상단바도 비좁다. */
   .zoom { display: none; }
-  .bar-status { display: none; }
+  .bar-status, .save-state { display: none; }
   .row-3 { grid-template-columns: 1fr 1fr; }
   .toasts { bottom: 14px; }
 }

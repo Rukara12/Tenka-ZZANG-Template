@@ -4,6 +4,7 @@
 import { SLOTS, SLOT_MAP, TEXTS, TEXT_MAP, LIMITS, defaultPlacement } from './config.js';
 import { getAsset } from './assets.js';
 import { visibleRect } from './mask.js';
+import { store } from './store.js';
 import { textOverflows, fitTextToBubble } from './renderer.js';
 import { planExport, sceneTiming, videoSupport, formatBytes, canCopyImage } from './exporter.js';
 
@@ -422,13 +423,18 @@ export class ExportDialog {
         this.format = b.dataset.fmt;
         for (const o of document.querySelectorAll('.seg-btn')) o.classList.toggle('is-on', o === b);
         this.refresh();
+        this.savePrefs();
       });
     }
     for (const id of ['ex-scale', 'ex-fps', 'ex-speed']) {
       // 이 값들이 바뀌면 재본 용량은 더 이상 유효하지 않다.
-      $(id).addEventListener('change', () => { this.clearSizes(); this.refresh(); });
+      $(id).addEventListener('change', () => { this.clearSizes(); this.refresh(); this.savePrefs(); });
     }
-    $('ex-colors').addEventListener('change', () => { this.markSelectedSize(); this.refresh(); });
+    $('ex-colors').addEventListener('change', () => {
+      this.markSelectedSize(); this.refresh(); this.savePrefs();
+    });
+
+    this.loadPrefs();
     $('ex-measure').addEventListener('click', () => this.measure());
     $('ex-cancel').addEventListener('click', () => {
       if (this.busy) { this.cancelled = true; return; }
@@ -437,6 +443,33 @@ export class ExportDialog {
     $('ex-run').addEventListener('click', () => this.run());
     $('ex-copy').addEventListener('click', () => this.copy());
     this.dlg.addEventListener('cancel', (e) => { if (this.busy) { e.preventDefault(); this.cancelled = true; } });
+  }
+
+  /**
+   * 마지막으로 쓴 내보내기 설정을 기억한다. 늘 같은 크기·fps 로 뽑는 사람이
+   * 새로고침할 때마다 다시 고르는 일을 없앤다.
+   */
+  async loadPrefs() {
+    const p = await store.get('exportPrefs');
+    if (!p) return;
+    this.prefFormat = p.format;
+    for (const [id, v] of [
+      ['ex-scale', p.scale], ['ex-fps', p.fps], ['ex-speed', p.speed], ['ex-colors', p.colors],
+    ]) {
+      const el = $(id);
+      // 선택지가 바뀌었을 수도 있으니 실제로 있는 값일 때만 되살린다.
+      if (v != null && [...el.options].some((o) => o.value === String(v))) el.value = String(v);
+    }
+  }
+
+  savePrefs() {
+    store.set('exportPrefs', {
+      format: this.format,
+      scale: $('ex-scale').value,
+      fps: $('ex-fps').value,
+      speed: $('ex-speed').value,
+      colors: $('ex-colors').value,
+    });
   }
 
   options() {
@@ -456,8 +489,13 @@ export class ExportDialog {
       b.disabled = (f === 'gif' || f === 'video') ? !t.animated : false;
       if (f === 'video' && !vid) b.disabled = true;
     }
-    if (!t.animated) this.format = 'png';
-    else if (this.format === 'video' && !vid) this.format = 'gif';
+    // 기억해 둔 형식을 우선 쓰되, 지금 쓸 수 없는 형식이면 쓸 수 있는 쪽으로 물러난다.
+    const usable = (f) => {
+      const b = document.querySelector(`.seg-btn[data-fmt="${f}"]`);
+      return b && !b.disabled;
+    };
+    if (this.prefFormat && usable(this.prefFormat)) this.format = this.prefFormat;
+    if (!usable(this.format)) this.format = usable('gif') ? 'gif' : 'png';
     for (const b of document.querySelectorAll('.seg-btn')) b.classList.toggle('is-on', b.dataset.fmt === this.format);
 
     $('ex-progress').hidden = true;
