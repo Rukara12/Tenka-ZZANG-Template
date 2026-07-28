@@ -4,7 +4,7 @@ import { CANVAS, SLOTS, SLOT_MAP, LINKS, BASE_FONT, defaultPlacement } from './c
 import { Editor } from './state.js';
 import { store } from './store.js';
 import { createAsset, restoreAsset, getAsset, frameIndexAt, disposeUnused } from './assets.js';
-import { drawScene, clearOutlineCache } from './renderer.js';
+import { drawScene, clearOutlineCache, fitTextToBubble } from './renderer.js';
 import { measureHoles, visibleRect } from './mask.js';
 import { Interactor } from './interact.js';
 import { TextEditor } from './textedit.js';
@@ -13,6 +13,7 @@ import {
   exportPng, exportGif, exportVideo, estimateGifSizes, measurePng, copyPng, renderThumb,
 } from './exporter.js';
 import { listDocs, saveDoc, deleteDoc, assetIdsOf, timeLabel } from './library.js';
+import { parseDialogue } from './dialogue.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -295,6 +296,49 @@ async function placeFile(file, slotKey) {
   }
 }
 
+/* ---------- 대사 불러오기 ---------- */
+
+const isDialogueFile = (f) =>
+  /\.(json|txt)$/i.test(f.name || '') || /^(application\/json|text\/)/.test(f.type || '');
+
+/**
+ * 읽어 들인 대사를 칸에 넣고 말풍선에 맞춘다.
+ * 넣기와 맞추기를 한 번의 변경으로 묶어 되돌리기 한 번에 원래대로 돌아가게 한다.
+ */
+function applyDialogue(parsed) {
+  const keys = Object.keys(parsed?.texts || {});
+  if (!keys.length) return false;
+
+  textEditor.finish();
+  editor.update((s) => {
+    for (const k of keys) {
+      s.texts[k].text = parsed.texts[k];
+      s.texts[k].auto = false;
+    }
+    for (const k of keys) {
+      const fit = fitTextToBubble(measure, k, s);
+      Object.assign(s.texts[k], { size: fit.size, dx: fit.dx, dy: fit.dy, w: fit.w, h: fit.h });
+    }
+  });
+
+  // 게임 이름이 함께 왔으면 로고 검색창을 채워 둔다 — 다음 할 일이 로고 찾기다.
+  if (parsed.game) $('sgdb-input').value = parsed.game;
+
+  refresh();
+  toast(`대사 ${keys.length}줄을 넣고 말풍선에 맞췄습니다.`);
+  return true;
+}
+
+async function readDialogueFile(file) {
+  try {
+    const parsed = parseDialogue(await file.text());
+    if (!parsed) throw new Error('형식을 알아보지 못했습니다.');
+    applyDialogue(parsed);
+  } catch (err) {
+    toast(`대사 파일을 읽지 못했습니다. ${err.message || ''}`.trim(), 'bad');
+  }
+}
+
 function requestUpload(slotKey) {
   uploadTarget = slotKey;
   $('file-input').value = '';
@@ -503,6 +547,15 @@ editor.addEventListener('history', (e) => ui.setHistory(e.detail));
 $('file-input').addEventListener('change', (e) => {
   const f = e.target.files?.[0];
   if (f) placeFile(f, uploadTarget);
+});
+
+$('dialogue-pick').addEventListener('click', () => {
+  $('dialogue-input').value = '';
+  $('dialogue-input').click();
+});
+$('dialogue-input').addEventListener('change', (e) => {
+  const f = e.target.files?.[0];
+  if (f) readDialogueFile(f);
 });
 
 $('font-input').addEventListener('change', async (e) => {
@@ -738,7 +791,13 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('paste', (e) => {
   if (e.target.matches?.('input, textarea')) return;
   const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'));
-  if (!item) return;
+  if (!item) {
+    // 그림이 아니면 대사인지 본다. Gem 이 뱉은 내용을 그대로 붙여넣어도 되게.
+    const text = e.clipboardData?.getData('text/plain');
+    const parsed = text && parseDialogue(text);
+    if (parsed) { e.preventDefault(); applyDialogue(parsed); }
+    return;
+  }
   e.preventDefault();
   const file = item.getAsFile();
   const sel = interactor.selection;
@@ -771,6 +830,9 @@ window.addEventListener('drop', (e) => {
   veil.hidden = true;
   const file = e.dataTransfer?.files?.[0];
   if (!file) return;
+
+  // 대사 파일이면 어디에 놓든 대사로 읽는다.
+  if (isDialogueFile(file)) { readDialogueFile(file); return; }
 
   const rect = stage.getBoundingClientRect();
   const x = ((e.clientX - rect.left) / rect.width) * CANVAS.w;

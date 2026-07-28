@@ -204,6 +204,8 @@
         </select>
       </label>
 
+      <button type="button" class="ghost-btn wide" id="dialogue-pick" title="AI 가 만든 대사 파일(JSON·TXT)을 읽어 세 칸에 넣습니다. 파일을 캔버스에 끌어다 놓거나 Ctrl+V 로 붙여넣어도 됩니다.">대사 불러오기</button>
+
       <button type="button" class="ghost-btn wide" id="font-pick">글꼴 바꾸기</button>
       <button type="button" class="ghost-btn wide" id="font-toggle" hidden></button>
       <div class="meta" id="font-meta">평택 노을체</div>
@@ -319,7 +321,7 @@
     <dl class="help-list">
       <dt>빈 칸 클릭</dt><dd>사진 고르기</dd>
       <dt><kbd>Ctrl</kbd>+<kbd>V</kbd></dt><dd>스크린샷 붙여넣기 — 커서를 올려둔 칸에 들어갑니다</dd>
-      <dt>끌어다 놓기</dt><dd>놓은 자리의 칸으로 들어갑니다</dd>
+      <dt>끌어다 놓기</dt><dd>놓은 자리의 칸으로 들어갑니다. 대사 파일이면 대사로 읽습니다</dd>
       <dt>드래그</dt><dd>옮기기</dd>
       <dt>방향키</dt><dd>1px 옮기기 (<kbd>Shift</kbd>와 함께 10px)</dd>
       <dt>모서리 손잡이</dt><dd>크기 — 반대쪽 모서리가 고정됩니다</dd>
@@ -358,6 +360,7 @@
 
 <input type="file" id="file-input" accept="image/*" hidden>
 <input type="file" id="font-input" accept=".ttf,.otf,.woff,.woff2" hidden>
+<input type="file" id="dialogue-input" accept=".json,.txt,application/json,text/plain" hidden>
 
 <div class="drop-veil" id="drop-veil" hidden><span>여기에 놓으면 들어갑니다</span></div>
 
