@@ -8,7 +8,7 @@ import { drawScene, clearOutlineCache } from './renderer.js';
 import { measureHoles, visibleRect } from './mask.js';
 import { Interactor } from './interact.js';
 import { TextEditor } from './textedit.js';
-import { UI, ExportDialog, toast } from './ui.js';
+import { UI, ExportDialog, toast, fitDialog } from './ui.js';
 import {
   exportPng, exportGif, exportVideo, estimateGifSizes, measurePng, copyPng, renderThumb,
 } from './exporter.js';
@@ -597,6 +597,7 @@ async function renderLibrary() {
 $('btn-library').addEventListener('click', async () => {
   $('lib-name').value = '';
   await renderLibrary();
+  fitDialog(libDialog);
   libDialog.showModal();
 });
 $('lib-close').addEventListener('click', () => libDialog.close());
@@ -617,7 +618,15 @@ $('lib-save').addEventListener('click', async () => {
 
 $('ui-scale').addEventListener('change', (e) => applyUiScale(e.target.value, true));
 
-$('btn-help').addEventListener('click', () => helpDialog.showModal());
+$('btn-help').addEventListener('click', () => {
+  fitDialog(helpDialog);
+  helpDialog.showModal();
+});
+
+// 주소창이 나타나거나 화면이 돌아가면 보이는 높이가 달라진다. 열려 있는 동안 따라간다.
+const refitDialog = () => fitDialog(document.querySelector('dialog[open]'));
+globalThis.visualViewport?.addEventListener('resize', refitDialog);
+globalThis.addEventListener('orientationchange', refitDialog);
 $('help-close').addEventListener('click', () => helpDialog.close());
 
 $('zoom-in').addEventListener('click', () => stepZoom(1));

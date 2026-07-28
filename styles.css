@@ -50,6 +50,8 @@
   --bar-h: 54px;
   --panel-w: 296px;
   --r: 8px;
+
+  --ui-scale: 1; /* main.js 가 화면 크기 설정에 따라 덮어쓴다 */
 }
 
 * { box-sizing: border-box; }
@@ -572,16 +574,16 @@ select { cursor: pointer; }
   padding: 0;
   width: min(400px, calc(100vw - 32px));
   box-shadow: 0 24px 70px rgba(0, 0, 0, .6);
-  /* 내용이 길면(조작법 대화상자) 화면 밖으로 나가 닫기 버튼조차 닿지 않는다.
-     dialog 는 기본으로 스크롤되지 않으므로 여기서 직접 잡아 준다. */
-  max-height: calc(100vh - 40px);
-  max-height: calc(100dvh - 40px);
+  /* 실제 크기는 ui.js 의 fitDialog() 가 화면을 재서 지정한다. 여기 값은 예비용이다.
+     vh 는 모바일에서 주소창이 보일 때의 높이를 반영하지 못하고, --ui-scale(zoom)이
+     걸리면 배율만큼 더 커져서 위아래가 잘린다. */
+  max-height: 85vh;
   overflow: auto;
   overscroll-behavior: contain;
 }
 .dialog::backdrop { background: rgba(6, 8, 12, .68); }
 
-.dialog-inner { padding: 18px; margin: 0; }
+.dialog-inner { padding: 18px 18px 0; margin: 0; }
 
 .dialog-title {
   margin: 0 0 14px;
@@ -689,11 +691,16 @@ select { cursor: pointer; }
   font-variant-numeric: tabular-nums;
 }
 
+/* 내용이 길어 스크롤이 생겨도 닫기 버튼에는 항상 손이 닿아야 한다. */
 .dialog-actions {
+  position: sticky;
+  bottom: 0;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 18px;
+  padding: 12px 0 18px;
+  background: var(--ink-850);
 }
 
 /* ── 알림 ─────────────────────────────────────────────── */

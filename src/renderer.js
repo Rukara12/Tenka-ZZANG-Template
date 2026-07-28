@@ -28,6 +28,11 @@ const GLYPH_SPAN = 0.78;
 /** 표본의 이 비율까지는 봐준다. 글자 모서리가 몇 픽셀 스치는 것까지 경고하면 시끄럽다. */
 const ESCAPE_TOLERANCE = 0.05;
 
+/** 빈 칸 안내. 세 칸이 같은 문장·같은 활자를 쓰도록 한 곳에 둔다. */
+const SLOT_HINT = '클릭 · 사진을 끌어다 놓기';
+const HINT_LABEL_PX = 16;
+const HINT_SUB_PX = 12.5;
+
 /** 이보다 작아지면 '맞춘' 게 아니라 그냥 안 보이는 것이다 — 상자 쪽을 손봐야 한다. */
 const READABLE_SIZE = 14;
 
@@ -333,10 +338,10 @@ function drawPlaceholders(ctx, state, hovered, scale, overlay, above) {
       ctx.fillStyle = active ? '#1a7f8c' : '#5d6676';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = '600 14px Pretendard, system-ui, sans-serif';
-      ctx.fillText(slot.label, cx, cy - 8);
-      ctx.font = '400 11.5px Pretendard, system-ui, sans-serif';
-      ctx.fillText('클릭 · 사진을 끌어다 놓기', cx, cy + 9);
+      ctx.font = `600 ${HINT_LABEL_PX}px Pretendard, system-ui, sans-serif`;
+      ctx.fillText(slot.label, cx, cy - 9);
+      ctx.font = `400 ${HINT_SUB_PX}px Pretendard, system-ui, sans-serif`;
+      ctx.fillText(SLOT_HINT, cx, cy + 12);
 
       ctx.restore();
       continue;
@@ -371,12 +376,16 @@ function drawPlaceholders(ctx, state, hovered, scale, overlay, above) {
     ctx.fillStyle = active ? '#1a7f8c' : (slot.above ? '#5d6676' : '#7c8496');
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const big = vis.w > 160 && vis.h > 90;
-    ctx.font = `600 ${big ? 17 : 12}px Pretendard, system-ui, sans-serif`;
-    ctx.fillText(slot.label, at.x, at.y - (big ? 10 : 0));
-    if (big) {
-      ctx.font = '400 13px Pretendard, system-ui, sans-serif';
-      ctx.fillText('클릭하거나 사진을 끌어다 놓기', at.x, at.y + 14);
+    // 안내 문구가 들어갈 자리가 되는지는 실제 글자 폭으로 판단한다.
+    // 칸마다 문장을 달리 쓰지 않고, 자리가 없으면 이름만 남긴다.
+    ctx.font = `400 ${HINT_SUB_PX}px Pretendard, system-ui, sans-serif`;
+    const roomy = vis.h > 90 && ctx.measureText(SLOT_HINT).width + 12 <= vis.w;
+
+    ctx.font = `600 ${roomy ? HINT_LABEL_PX : 12}px Pretendard, system-ui, sans-serif`;
+    ctx.fillText(slot.label, at.x, at.y - (roomy ? 9 : 0));
+    if (roomy) {
+      ctx.font = `400 ${HINT_SUB_PX}px Pretendard, system-ui, sans-serif`;
+      ctx.fillText(SLOT_HINT, at.x, at.y + 12);
     }
     ctx.restore();
   }

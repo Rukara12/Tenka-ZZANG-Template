@@ -45,6 +45,24 @@ const tickFromScale = (s) => {
 };
 
 
+/**
+ * 대화상자를 지금 실제로 보이는 영역 안에 맞춘다.
+ *
+ * CSS 의 vh 로는 부족하다. 모바일에서 vh 는 주소창이 숨겨진 상태의 높이라
+ * 주소창이 떠 있으면 그만큼 넘치고, 화면 크기(--ui-scale=zoom)가 걸려 있으면
+ * 배율만큼 더 커진다. 둘이 겹치면 위아래가 잘려 닫기 버튼에 손이 닿지 않는다.
+ * visualViewport 는 주소창을 뺀 실제 크기를 주므로 그걸 배율로 나눠 쓴다.
+ */
+export function fitDialog(dlg) {
+  if (!dlg) return;
+  const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+  const vv = globalThis.visualViewport;
+  const h = (vv?.height ?? globalThis.innerHeight) / zoom;
+  const w = (vv?.width ?? globalThis.innerWidth) / zoom;
+  dlg.style.maxHeight = `${Math.max(200, h - 24)}px`;
+  dlg.style.width = `${Math.max(260, Math.min(400, w - 24))}px`;
+}
+
 export function toast(message, kind = '') {
   const box = $('toasts');
   const el = document.createElement('div');
@@ -506,6 +524,7 @@ export class ExportDialog {
     $('ex-cancel').textContent = '닫기';
     $('ex-run').disabled = false;
     this.refresh();
+    fitDialog(this.dlg);
     this.dlg.showModal();
   }
 
