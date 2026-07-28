@@ -29,7 +29,8 @@ export class Interactor {
     this.editor = editor;
     this.hooks = hooks;
     this.selection = null;
-    this.hovered = null;
+    this.hovered = null;   // 빈 칸 강조용 (칸이 비어 있을 때만)
+    this.hoverSlot = null; // 커서가 지금 올라가 있는 칸 (비었든 찼든)
     this.mode = null;
     this.pointers = new Map();
     this.hud = null;
@@ -271,7 +272,11 @@ export class Interactor {
     el.addEventListener('pointermove', (e) => this.onMove(e));
     el.addEventListener('pointerup', (e) => this.onUp(e));
     el.addEventListener('pointercancel', (e) => this.onUp(e));
-    el.addEventListener('pointerleave', () => { this.hovered = null; this.hooks.onChange?.(); });
+    el.addEventListener('pointerleave', () => {
+      this.hovered = null;
+      this.hoverSlot = null; // 캔버스를 벗어나면 붙여넣기는 다른 기준으로 넘어간다
+      this.hooks.onChange?.();
+    });
     el.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
     el.addEventListener('dblclick', (e) => this.onDoubleClick(e));
   }
@@ -368,6 +373,8 @@ export class Interactor {
 
     if (!this.mode) {
       const t = this.hitTarget(pt);
+      // 붙여넣기가 '커서가 올라가 있는 칸'을 쓸 수 있도록 항상 기록해 둔다.
+      this.hoverSlot = t?.type === 'slot' ? t.key : null;
       const h = t && t.type === 'slot' && !this.state.slots[t.key] ? t.key : null;
       if (h !== this.hovered) { this.hovered = h; this.hooks.onChange?.(); }
       this.el.style.cursor = this.cursorFor(this.hitHandle(pt), t);
