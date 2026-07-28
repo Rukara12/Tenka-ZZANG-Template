@@ -385,17 +385,38 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .item.filled .item-dot { background: var(--sel); }
 .item.overflow .item-dot { background: #ff7a5c; }
-.item.overflow .item-sub::after { content: ' · 말풍선 넘침'; color: #ff7a5c; }
 
-.item-body { flex: 1; min-width: 0; }
-.item-name { font-size: 12.5px; font-weight: 500; }
+/* 이름과 미리보기를 한 줄에 고정한다. 예전에는 둘 다 인라인이라 미리보기가 길면
+   다음 줄로 넘어갔고, 길이에 따라 항목 높이가 들쭉날쭉했다. .item-sub 에 걸어둔
+   말줄임표도 인라인 요소에는 적용되지 않아 동작하지 않았다. */
+.item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.item-name { flex: none; font-size: 12.5px; font-weight: 500; }
+
 .item-sub {
+  flex: 1;
+  min-width: 0;
   font-size: 11px;
   color: var(--fg-mute);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
+}
+
+/* 넘침 표시는 말줄임표에 잘리면 안 되므로 별도 칸으로 둔다.
+   .item-body 가 flex 이므로 ::after 는 그 자체로 하나의 칸이 된다. */
+.item.overflow .item-body::after {
+  content: '넘침';
+  flex: none;
+  font-size: 11px;
+  color: #ff7a5c;
 }
 
 /* 필드 */

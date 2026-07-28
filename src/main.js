@@ -733,7 +733,13 @@ window.addEventListener('paste', (e) => {
   e.preventDefault();
   const file = item.getAsFile();
   const sel = interactor.selection;
-  placeFile(file, sel?.type === 'slot' ? sel.key : uploadTarget);
+  // 커서가 올라가 있는 칸을 먼저 본다. 끌어다 놓을 때 놓은 자리로 들어가는 것과
+  // 같은 감각이라, 넣고 싶은 칸에 커서만 올리고 붙여넣으면 된다.
+  // 커서가 캔버스 밖이면 고른 칸, 그것도 없으면 마지막에 쓰던 칸으로 간다.
+  const key = interactor.hoverSlot
+    || (sel?.type === 'slot' ? sel.key : null)
+    || uploadTarget;
+  placeFile(file, key);
 });
 
 // 끌어놓기 — 캔버스 위 좌표로 어느 칸인지 알아낸다

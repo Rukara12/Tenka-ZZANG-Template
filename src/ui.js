@@ -295,9 +295,10 @@ export class UI {
       const ts = st.texts[t.key];
       btn.classList.toggle('filled', !!ts.text.trim());
       btn.classList.toggle('overflow', !!ts.text.trim() && textOverflows(measure, t.key, st));
-      btn.querySelector('[data-sub]').textContent = ts.text.trim()
-        ? ts.text.replace(/\s+/g, ' ').slice(0, 30)
-        : '비어 있음';
+      const preview = ts.text.replace(/\s+/g, ' ').trim();
+      btn.querySelector('[data-sub]').textContent = preview || '비어 있음';
+      // 한 줄로 잘리므로 전체 내용은 툴팁으로 볼 수 있게 한다.
+      btn.title = preview || '비어 있음';
     }
 
     // 소스 정보

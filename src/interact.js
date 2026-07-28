@@ -345,6 +345,7 @@ export class Interactor {
     }
 
     const target = this.hitTarget(pt);
+    this.hoverSlot = target?.type === 'slot' ? target.key : null;
 
     if (target?.type === 'slot' && !this.state.slots[target.key]) {
       // 빈 구멍을 누르면 바로 사진 고르기.
