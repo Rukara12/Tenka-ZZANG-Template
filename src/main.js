@@ -96,6 +96,30 @@ const stageWrap = $('stage-wrap');
 const stageArea = document.querySelector('.stage-area');
 const stageTip = $('stage-tip');
 
+/* ---------- UI 크기 ---------- */
+
+// 기본 13px 글씨는 큰 모니터에서 지나치게 작다. 그렇다고 모두에게 175% 를 물리면
+// 노트북에서는 과하므로, 화면 실물 크기로 기본값을 잡고 직접 바꿀 수 있게 한다.
+// (창 크기가 아니라 screen 을 보는 이유: 창을 줄여 쓴다고 글씨가 작아야 할 이유는 없다)
+function autoUiScale() {
+  const w = globalThis.screen?.width || 1280;
+  if (w >= 3000) return 1.75;
+  if (w >= 2400) return 1.5;
+  if (w >= 1800) return 1.25;
+  return 1;
+}
+
+let uiScale = 1;
+
+function applyUiScale(v, persist) {
+  uiScale = Math.min(2, Math.max(1, Number(v) || 1));
+  document.documentElement.style.setProperty('--ui-scale', String(uiScale));
+  $('ui-scale').value = String(uiScale);
+  if (persist) store.set('uiScale', uiScale);
+  // 화면 배율이 바뀌면 캔버스가 차지할 공간도 바뀐다.
+  resize();
+}
+
 const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.25, 1.5, 2, 2.5, 3];
 const ZOOM_MIN = ZOOM_STEPS[0];
 const ZOOM_MAX = ZOOM_STEPS[ZOOM_STEPS.length - 1];
@@ -136,7 +160,8 @@ function applyView() {
   stageWrap.style.width = `${Math.max(200, Math.floor(CANVAS.w * z))}px`;
 
   // 표시 크기가 정해진 다음에 백업 캔버스 해상도를 맞춘다.
-  const dpr = Math.min(globalThis.devicePixelRatio || 1, 2);
+  // UI 크기(zoom)만큼 실제 화면 픽셀도 늘어나므로 같이 곱해야 흐릿해지지 않는다.
+  const dpr = Math.min((globalThis.devicePixelRatio || 1) * uiScale, 2.5);
   const want = Math.min(MAX_RENDER_SCALE, Math.max(1, z * dpr));
   const next = Math.round(want * 4) / 4;
   if (next !== renderScale) {
@@ -590,6 +615,8 @@ $('lib-save').addEventListener('click', async () => {
   }
 });
 
+$('ui-scale').addEventListener('change', (e) => applyUiScale(e.target.value, true));
+
 $('btn-help').addEventListener('click', () => helpDialog.showModal());
 $('help-close').addEventListener('click', () => helpDialog.close());
 
@@ -769,6 +796,9 @@ document.addEventListener('visibilitychange', () => { lastTs = 0; markDirty(); }
       new Promise((r) => setTimeout(r, 2500)),
     ]);
   } catch { /* 글꼴 없이도 진행 */ }
+
+  // 화면 크기를 먼저 정한다. 나중에 하면 캔버스를 두 번 계산하게 된다.
+  applyUiScale((await store.get('uiScale')) ?? autoUiScale(), false);
 
   // 저장해 둔 글꼴을 먼저 등록한다. 이걸 restore() 뒤로 미루면 상태가 가리키는
   // 글꼴이 아직 없는 것으로 판정돼 기본 글꼴로 되돌려 버린다.

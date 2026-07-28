@@ -60,6 +60,14 @@
    여기서 한 번 못박아 둔다. */
 [hidden] { display: none !important; }
 
+/* 화면 크기. 브라우저의 Ctrl +/- 와 같은 방식으로 UI 전체를 키운다.
+   캔버스는 남는 공간을 채우도록 계산되므로 결과적으로 '크롬만' 커진다.
+   측정(clientWidth)과 지정(style.width)이 같은 좌표계에서 이뤄지므로
+   맞춤 배율 계산은 그대로 성립한다. */
+html {
+  zoom: var(--ui-scale, 1);
+}
+
 html, body {
   height: 100%;
   margin: 0;
