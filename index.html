@@ -33,6 +33,12 @@
     <button type="button" class="icon-btn" id="btn-redo" title="다시하기 (Ctrl+Shift+Z)" aria-label="다시하기" disabled>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13 5l4 4-4 4M16.6 9H8a5 5 0 000 10h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
+    <button type="button" class="icon-btn" id="btn-library" title="보관함 — 작업물 저장·불러오기" aria-label="보관함">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 6.5h6l1.5 2h7.5v8.5h-15z M2.5 6.5v-3h5l1.5 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button type="button" class="icon-btn" id="btn-help" title="조작법 (?)" aria-label="조작법">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7.8 7.6a2.3 2.3 0 114.1 1.5c-.7.8-1.9 1-1.9 2.3M10 14.4v.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
     <button type="button" class="ghost-btn" id="btn-reset">처음부터</button>
     <button type="button" class="primary-btn" id="btn-export">내보내기</button>
   </div>
@@ -263,7 +269,71 @@
 
     <div class="dialog-actions">
       <button type="button" class="ghost-btn" id="ex-cancel">닫기</button>
+      <button type="button" class="ghost-btn" id="ex-copy">복사</button>
       <button type="button" class="primary-btn" id="ex-run">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 보관함 -->
+<dialog id="library-dialog" class="dialog">
+  <form method="dialog" class="dialog-inner">
+    <h2 class="dialog-title">보관함</h2>
+
+    <div class="lib-save">
+      <input type="text" id="lib-name" placeholder="이름 (비우면 날짜로)" maxlength="40" autocomplete="off">
+      <button type="button" class="primary-btn" id="lib-save">지금 작업 저장</button>
+    </div>
+
+    <div class="lib-list" id="lib-list"></div>
+    <div class="dialog-note">사진도 함께 보관됩니다. 같은 사진을 쓴 작업물끼리는 원본을 공유하므로 용량이 늘지 않습니다.</div>
+
+    <div class="dialog-actions">
+      <button type="button" class="ghost-btn" id="lib-close">닫기</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 조작법 -->
+<dialog id="help-dialog" class="dialog">
+  <form method="dialog" class="dialog-inner">
+    <h2 class="dialog-title">조작법</h2>
+
+    <div class="help-sec">사진</div>
+    <dl class="help-list">
+      <dt>빈 칸 클릭</dt><dd>사진 고르기</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>V</kbd></dt><dd>스크린샷을 바로 붙여넣기</dd>
+      <dt>끌어다 놓기</dt><dd>놓은 자리의 칸으로 들어갑니다</dd>
+      <dt>드래그</dt><dd>옮기기</dd>
+      <dt>방향키</dt><dd>1px 옮기기 (<kbd>Shift</kbd>와 함께 10px)</dd>
+      <dt>모서리 손잡이</dt><dd>크기 — 반대쪽 모서리가 고정됩니다</dd>
+      <dt><kbd>Ctrl</kbd>+모서리</dt><dd>가운데를 기준으로 크기 조절</dd>
+      <dt>휠 · 두 손가락</dt><dd>크기</dd>
+      <dt>위쪽 손잡이</dt><dd>회전 (<kbd>Shift</kbd>로 15° 단위)</dd>
+      <dt>사진 두 번 클릭</dt><dd>다른 사진으로 바꾸기</dd>
+      <dt><kbd>Delete</kbd></dt><dd>사진 빼기</dd>
+    </dl>
+
+    <div class="help-sec">문구</div>
+    <dl class="help-list">
+      <dt>두 번 클릭</dt><dd>문구 고치기</dd>
+      <dt><kbd>Enter</kbd></dt><dd>고른 문구 고치기 시작</dd>
+      <dt>좌우 손잡이</dt><dd>칸 너비</dd>
+      <dt>위아래 손잡이</dt><dd>칸 높이</dd>
+      <dt>모서리 손잡이</dt><dd>칸과 글자를 함께</dd>
+    </dl>
+
+    <div class="help-sec">화면과 되돌리기</div>
+    <dl class="help-list">
+      <dt><kbd>Ctrl</kbd>+휠</dt><dd>보기 배율 (사진 크기가 아닙니다)</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>되돌리기 (<kbd>Shift</kbd>와 함께 다시하기)</dd>
+      <dt><kbd>Esc</kbd></dt><dd>선택 해제 · 문구 편집 끝내기</dd>
+    </dl>
+
+    <div class="dialog-note">고르고 있는 사진만 또렷하게 보이고, 잘려서 안 보이는 부분은 옅게 비칩니다.</div>
+
+    <div class="dialog-actions">
+      <button type="button" class="ghost-btn" id="help-close">닫기</button>
     </div>
   </form>
 </dialog>

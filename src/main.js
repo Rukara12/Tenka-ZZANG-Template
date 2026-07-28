@@ -9,7 +9,8 @@ import { measureHoles, visibleRect } from './mask.js';
 import { Interactor } from './interact.js';
 import { TextEditor } from './textedit.js';
 import { UI, ExportDialog, toast } from './ui.js';
-import { exportPng, exportGif, exportVideo, estimateGifSizes, measurePng } from './exporter.js';
+import { exportPng, exportGif, exportVideo, estimateGifSizes, measurePng, copyPng } from './exporter.js';
+import { listDocs, saveDoc, deleteDoc, assetIdsOf, timeLabel } from './library.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -244,18 +245,33 @@ function scheduleSave() {
   }, 900);
 }
 
+/** 상태가 가리키는 사진들을 저장소에서 되살린다. @returns 되살리지 못한 개수 */
+async function hydrate(saved) {
+  const ids = SLOTS.map((s) => saved.slots?.[s.key]?.asset).filter(Boolean);
+  let lost = 0;
+  for (const id of ids) {
+    if (await restoreAsset(id)) continue;
+    lost++;
+    for (const s of SLOTS) if (saved.slots[s.key]?.asset === id) saved.slots[s.key] = null;
+  }
+  return lost;
+}
+
+/**
+ * 안 쓰는 사진을 저장소에서 정리한다.
+ * 보관함이 참조하는 것까지 세어야 보관해 둔 작업물의 사진이 살아남는다.
+ */
+async function pruneAssets() {
+  const used = SLOTS.map((s) => editor.state.slots[s.key]?.asset).filter(Boolean);
+  const keep = new Set(used);
+  for (const id of assetIdsOf(await listDocs())) keep.add(id);
+  disposeUnused(used, [...keep]);
+}
+
 async function restore() {
   const saved = await store.get('state');
   if (!saved || !saved.slots) return false;
-  const ids = SLOTS.map((s) => saved.slots[s.key]?.asset).filter(Boolean);
-  let lost = 0;
-  for (const id of ids) {
-    const ok = await restoreAsset(id);
-    if (!ok) {
-      lost++;
-      for (const s of SLOTS) if (saved.slots[s.key]?.asset === id) saved.slots[s.key] = null;
-    }
-  }
+  const lost = await hydrate(saved);
   // 사용자가 올린 글꼴은 세션이 끝나면 사라지므로, 없는 글꼴을 가리키면 기본값으로 되돌린다.
   let fontLost = false;
   if (saved.font && saved.font !== BASE_FONT && !document.fonts.check(`700 40px "${saved.font}"`)) {
@@ -340,6 +356,19 @@ const exportDialog = new ExportDialog(editor, {
     if (format === 'png') return measurePng(editor.state, overlayImg, opts);
     return estimateGifSizes(editor.state, overlayImg, { ...opts, ...cb });
   },
+  onCopy: async (opts) => {
+    const wasEditing = textEditor.active;
+    if (wasEditing) textEditor.finish();
+    const saved = interactor.selection;
+    interactor.selection = null;
+    markDirty();
+    try {
+      return await copyPng(editor.state, overlayImg, opts);
+    } finally {
+      interactor.selection = saved;
+      markDirty();
+    }
+  },
   onRun: async (format, opts, cb) => {
     const wasEditing = textEditor.active;
     if (wasEditing) textEditor.finish();
@@ -401,6 +430,78 @@ $('font-input').addEventListener('change', async (e) => {
   }
 });
 
+/* ---------- 보관함 ---------- */
+
+const libDialog = $('library-dialog');
+const helpDialog = $('help-dialog');
+
+function libRow(doc) {
+  const row = document.createElement('div');
+  row.className = 'lib-item';
+  const filled = Object.values(doc.state?.slots || {}).filter(Boolean).length;
+  row.innerHTML = `<span class="lib-item-body">
+      <span class="lib-item-name"></span>
+      <span class="lib-item-sub"></span>
+    </span>
+    <button type="button" class="ghost-btn" data-act="load">불러오기</button>
+    <button type="button" class="ghost-btn danger" data-act="del">삭제</button>`;
+  row.querySelector('.lib-item-name').textContent = doc.name;
+  row.querySelector('.lib-item-sub').textContent =
+    `${timeLabel(new Date(doc.savedAt))} · 사진 ${filled}장`;
+
+  row.querySelector('[data-act="load"]').addEventListener('click', async () => {
+    if (!confirm(`"${doc.name}" 을 불러올까요?\n지금 작업은 저장하지 않으면 사라집니다.`)) return;
+    const state = JSON.parse(JSON.stringify(doc.state));
+    const lost = await hydrate(state);
+    textEditor.finish();
+    interactor.select(null);
+    editor.load(state);
+    clearOutlineCache();
+    await pruneAssets();
+    refresh();
+    libDialog.close();
+    toast(lost ? '일부 사진은 되살리지 못했습니다.' : `"${doc.name}" 을 불러왔습니다.`, lost ? 'warn' : '');
+  });
+
+  row.querySelector('[data-act="del"]').addEventListener('click', async () => {
+    if (!confirm(`"${doc.name}" 을 보관함에서 지울까요?`)) return;
+    await deleteDoc(doc.id);
+    await pruneAssets();
+    renderLibrary();
+  });
+  return row;
+}
+
+async function renderLibrary() {
+  const list = $('lib-list');
+  const docs = await listDocs();
+  list.textContent = '';
+  if (!docs.length) {
+    const empty = document.createElement('div');
+    empty.className = 'lib-empty';
+    empty.textContent = '보관해 둔 작업물이 없습니다. 지금 작업을 저장해 두면 나중에 이어서 쓰거나 사본을 만들 수 있습니다.';
+    list.appendChild(empty);
+    return;
+  }
+  for (const doc of docs) list.appendChild(libRow(doc));
+}
+
+$('btn-library').addEventListener('click', async () => {
+  $('lib-name').value = '';
+  await renderLibrary();
+  libDialog.showModal();
+});
+$('lib-close').addEventListener('click', () => libDialog.close());
+$('lib-save').addEventListener('click', async () => {
+  const doc = await saveDoc($('lib-name').value, editor.state);
+  $('lib-name').value = '';
+  await renderLibrary();
+  toast(`"${doc.name}" 으로 보관했습니다.`);
+});
+
+$('btn-help').addEventListener('click', () => helpDialog.showModal());
+$('help-close').addEventListener('click', () => helpDialog.close());
+
 $('zoom-in').addEventListener('click', () => stepZoom(1));
 $('zoom-out').addEventListener('click', () => stepZoom(-1));
 $('zoom-level').addEventListener('click', () => setZoom(0));
@@ -420,12 +521,14 @@ $('btn-redo').addEventListener('click', () => { editor.redo(); afterHistory(); }
 $('btn-export').addEventListener('click', () => exportDialog.open());
 
 $('btn-reset').addEventListener('click', async () => {
-  if (!confirm('지금까지 만든 걸 모두 지우고 처음부터 시작할까요?')) return;
+  if (!confirm('지금 작업을 지우고 처음부터 시작할까요?\n보관함에 저장해 둔 작업물은 남습니다.')) return;
   textEditor.finish();
   interactor.select(null);
   editor.reset();
-  disposeUnused([]);
-  await store.clear();
+  // store.clear() 는 보관함과 그 사진까지 통째로 날린다. 지금 작업만 지운다.
+  await store.del('state');
+  await store.del('savedAt');
+  await pruneAssets();
   clearOutlineCache();
   ui.setFontName('평택 노을체');
   refresh();
@@ -440,6 +543,10 @@ function afterHistory() {
 }
 
 window.addEventListener('keydown', (e) => {
+  // 대화상자가 열려 있으면 캔버스 단축키는 쉰다. 보관함을 보는 중에 Ctrl+Z 가
+  // 뒤에서 작업을 되돌리고 있으면 곤란하다. (Esc 로 닫는 건 브라우저가 처리한다)
+  if (document.querySelector('dialog[open]')) return;
+
   const typing = e.target.matches('input, textarea, select');
   const mod = e.ctrlKey || e.metaKey;
 
@@ -578,7 +685,5 @@ document.addEventListener('visibilitychange', () => { lastTs = 0; markDirty(); }
 
   if (restored) toast('이전에 하던 작업을 이어서 불러왔습니다.');
 
-  // 안 쓰는 사진은 저장소에서 정리
-  const used = SLOTS.map((s) => editor.state.slots[s.key]?.asset).filter(Boolean);
-  disposeUnused(used);
+  await pruneAssets();
 })();

@@ -5,7 +5,7 @@ import { SLOTS, SLOT_MAP, TEXTS, TEXT_MAP, LIMITS, defaultPlacement } from './co
 import { getAsset } from './assets.js';
 import { visibleRect } from './mask.js';
 import { textOverflows, fitTextToBubble } from './renderer.js';
-import { planExport, sceneTiming, videoSupport, formatBytes } from './exporter.js';
+import { planExport, sceneTiming, videoSupport, formatBytes, canCopyImage } from './exporter.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -435,6 +435,7 @@ export class ExportDialog {
       this.dlg.close();
     });
     $('ex-run').addEventListener('click', () => this.run());
+    $('ex-copy').addEventListener('click', () => this.copy());
     this.dlg.addEventListener('cancel', (e) => { if (this.busy) { e.preventDefault(); this.cancelled = true; } });
   }
 
@@ -469,11 +470,46 @@ export class ExportDialog {
     this.dlg.showModal();
   }
 
+  /** 복사 버튼의 상태와 이유를 갱신한다. 죽은 버튼을 방치하지 않는다. */
+  syncCopy() {
+    const btn = $('ex-copy');
+    if (!canCopyImage()) {
+      btn.disabled = true;
+      btn.title = '이 브라우저는 그림 복사를 지원하지 않습니다. 저장해서 올려 주세요.';
+      return;
+    }
+    if (this.format !== 'png') {
+      btn.disabled = true;
+      btn.title = '클립보드는 PNG 만 받습니다. GIF·영상은 저장해서 올려 주세요.';
+      return;
+    }
+    btn.disabled = this.busy;
+    btn.title = '클립보드에 넣습니다. 디스코드·트위터에 Ctrl+V 로 바로 붙여넣을 수 있습니다.';
+  }
+
+  async copy() {
+    if (this.busy) return;
+    this.busy = true;
+    $('ex-copy').disabled = true;
+    $('ex-copy').textContent = '복사 중…';
+    try {
+      await this.hooks.onCopy(this.options());
+      toast('클립보드에 복사했습니다. 붙여넣기(Ctrl+V) 하세요.');
+    } catch (err) {
+      toast(err.message || '복사하지 못했습니다.', 'bad');
+    } finally {
+      this.busy = false;
+      $('ex-copy').textContent = '복사';
+      this.syncCopy();
+    }
+  }
+
   refresh() {
     const animated = sceneTiming(this.editor.state).animated;
     const isMotion = this.format !== 'png';
     $('motion-fields').hidden = !isMotion;
     $('ex-colors-field').hidden = this.format !== 'gif';
+    this.syncCopy();
 
     const o = this.options();
     const plan = planExport(this.editor.state, o);
@@ -613,6 +649,7 @@ export class ExportDialog {
       $('ex-run').disabled = false;
       $('ex-cancel').textContent = '닫기';
       $('ex-progress').hidden = true;
+      this.syncCopy();
     }
   }
 

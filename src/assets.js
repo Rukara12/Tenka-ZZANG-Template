@@ -183,13 +183,21 @@ export async function restoreAsset(id) {
   }
 }
 
-export function disposeUnused(usedIds) {
+/**
+ * 안 쓰는 에셋을 메모리에서 내리고, 저장소에서도 정리한다.
+ *
+ * @param {string[]} usedIds    지금 화면이 쓰는 것 (메모리에 남길 것)
+ * @param {string[]} [keepBlobIds] 저장소에 남길 것. 기본값은 usedIds.
+ *        보관함이 있으면 반드시 보관함이 참조하는 id 까지 넘겨야 한다 —
+ *        지금 작업만 기준으로 지우면 보관해 둔 작업물의 사진이 날아간다.
+ */
+export function disposeUnused(usedIds, keepBlobIds = usedIds) {
   for (const [id, asset] of assets) {
     if (usedIds.includes(id)) continue;
     for (const f of asset.frames) f.close?.();
     assets.delete(id);
   }
-  store.keepOnly(usedIds);
+  store.keepOnly(keepBlobIds);
 }
 
 /** 워커에 임의 작업을 보낸다. 워커를 못 쓰면 거부되므로 호출부가 폴백을 잡아야 한다. */

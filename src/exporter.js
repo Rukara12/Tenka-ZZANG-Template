@@ -94,6 +94,37 @@ export async function exportPng(state, overlay, { scale = 1 } = {}) {
   return { size: blob.size };
 }
 
+/** 클립보드에 그림을 넣을 수 있는 브라우저인가. */
+export function canCopyImage() {
+  return typeof ClipboardItem !== 'undefined' && !!navigator.clipboard?.write;
+}
+
+async function renderPngBlob(state, overlay, scale) {
+  const canvas = makeCanvas(Math.round(CANVAS.w * scale), Math.round(CANVAS.h * scale));
+  drawScene(canvas.getContext('2d'), { state, time: 0, scale, overlay });
+  return canvasToBlob(canvas, 'image/png');
+}
+
+/**
+ * PNG 를 클립보드에 넣는다. 저장 → 파일 찾기 → 첨부 세 단계가 붙여넣기 한 번이 된다.
+ *
+ * 클립보드 규격이 사실상 PNG 만 받으므로 GIF·영상은 지원할 수 없다.
+ * 사파리는 사용자 조작이 끝난 뒤에 만들어진 Blob 을 거부하므로, 렌더가 끝나기 전에
+ * 약속(Promise)째로 넘기는 방식을 먼저 쓰고 실패하면 완성된 Blob 으로 다시 시도한다.
+ */
+export async function copyPng(state, overlay, { scale = 1 } = {}) {
+  if (!canCopyImage()) throw new Error('이 브라우저는 그림 복사를 지원하지 않습니다.');
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'image/png': renderPngBlob(state, overlay, scale) }),
+    ]);
+  } catch {
+    const blob = await renderPngBlob(state, overlay, scale);
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+  }
+  return { ok: true };
+}
+
 /* ---------- 팔레트 표본 (내보내기와 용량 추정이 공유) ---------- */
 
 /**
