@@ -21,14 +21,23 @@
   --ink-900: #0d1017;
   --ink-850: #12151d;
   --ink-800: #171b25;
-  --ink-750: #1d2230;
-  --ink-700: #252b3a;
-  --ink-600: #333a4c;
+  /* 숫자가 클수록 어둡다. 버튼 면(750)을 올렸으니 hover(700)와 테두리(600)도
+     같이 올려야 계단이 유지된다 — 안 그러면 hover 할 때 오히려 어두워진다. */
+  --ink-750: #262d40; /* 버튼 면. 배경과 1.15 밖에 차이가 안 나 버튼으로 안 읽혔다 */
+  --ink-700: #323a4d; /* hover / 옅은 구분선 */
+  /* 테두리는 WCAG 1.4.11(비텍스트 대비 3:1)을 채우는 최소값으로 잡았다.
+     색상·채도는 그대로 두고 명도만 33%→42% 올려서, 선이 도드라지는 대신
+     '보이기는 하는' 선에 딱 맞췄다. 더 올리면 화면이 선으로 갈려 산만해진다. */
+  --ink-600: #5b6783; /* 테두리 — 가장 밝은 이웃(인풋)에서도 3.04 */
+  --ink-500: #6c799a; /* hover 테두리 — 기본보다 밝아야 한다 */
   --stage: #2b3040;
 
-  --fg: #e9ecf4;
-  --fg-dim: #8d95a9;
-  --fg-mute: #626a7d;
+  /* 세 단계 모두 패널 배경에서 4.5:1 을 넘긴다. 예전 --fg-mute 는 3.37 이었는데,
+     하필 11~12px 짜리 보조 텍스트(저장 표시·목록 부제·도움말 설명)가 전부 이 색이라
+     가장 작은 글씨가 가장 안 읽혔다. 두 단계 사이를 벌려 위계도 살렸다. */
+  --fg: #e9ecf4;      /* 15.4 : 1 */
+  --fg-dim: #a3abbd;  /*  7.9 : 1 */
+  --fg-mute: #828b9f; /*  5.3 : 1 */
 
   --sel: #46d8e8;
   --sel-soft: rgba(70, 216, 232, 0.14);
@@ -150,7 +159,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .zoom button {
   border: 0;
   background: transparent;
-  color: var(--fg-mute);
+  /* 이 버튼들은 패널이 아니라 밝은 버튼 면 위에 얹힌다. --fg-mute 는 거기서
+     4.01 로 떨어지므로 한 단계 밝은 색을 쓴다. */
+  color: var(--fg-dim);
   cursor: pointer;
   border-radius: 5px;
   height: 26px;
@@ -158,7 +169,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 .zoom button:hover:not(:disabled) { background: var(--ink-700); color: var(--fg); }
-.zoom button:disabled { opacity: .35; cursor: default; }
+/* .35 는 대비 1.7 로 사실상 안 보인다. 왜 못 누르는지 읽히기는 해야 한다. */
+.zoom button:disabled { opacity: .55; cursor: default; }
 
 .zoom-step { width: 26px; font-size: 15px; line-height: 1; }
 
@@ -202,13 +214,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .icon-btn:hover:not(:disabled),
 .ghost-btn:hover:not(:disabled) {
   background: var(--ink-700);
-  border-color: #414a60;
+  border-color: var(--ink-500);
   color: var(--fg);
 }
 
 .icon-btn:disabled,
 .ghost-btn:disabled {
-  opacity: .35;
+  opacity: .55;
   cursor: default;
 }
 
@@ -286,7 +298,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .stage-tip {
   margin: 0;
-  color: rgba(233, 236, 244, .5);
+  color: rgba(233, 236, 244, .62);
   font-size: 12px;
   text-align: center;
   max-width: 60ch;
@@ -355,7 +367,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   text-align: left;
   transition: border-color .13s, background .13s;
 }
-.item:hover { border-color: #414a60; background: var(--ink-750); }
+.item:hover { border-color: var(--ink-500); background: var(--ink-750); }
 .item.filled { border-color: rgba(70, 216, 232, .3); }
 
 .item-dot {
@@ -533,6 +545,12 @@ select { cursor: pointer; }
   padding: 0;
   width: min(400px, calc(100vw - 32px));
   box-shadow: 0 24px 70px rgba(0, 0, 0, .6);
+  /* 내용이 길면(조작법 대화상자) 화면 밖으로 나가 닫기 버튼조차 닿지 않는다.
+     dialog 는 기본으로 스크롤되지 않으므로 여기서 직접 잡아 준다. */
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 .dialog::backdrop { background: rgba(6, 8, 12, .68); }
 
@@ -565,7 +583,7 @@ select { cursor: pointer; }
   cursor: pointer;
 }
 .seg-btn.is-on { background: var(--ink-700); color: var(--fg); }
-.seg-btn:disabled { opacity: .3; cursor: default; }
+.seg-btn:disabled { opacity: .5; cursor: default; }
 
 .estimate {
   margin-top: 14px;
@@ -604,7 +622,7 @@ select { cursor: pointer; }
   font-size: 12px;
   transition: border-color .13s, background .13s;
 }
-.size-row:hover { border-color: #414a60; background: var(--ink-750); }
+.size-row:hover { border-color: var(--ink-500); background: var(--ink-750); }
 .size-row.is-on { border-color: var(--sel); color: var(--fg); background: var(--sel-soft); }
 
 .size-row b {
@@ -733,6 +751,19 @@ select { cursor: pointer; }
   border-radius: var(--r);
   background: var(--ink-800);
 }
+
+.lib-thumb {
+  flex: none;
+  width: 76px;
+  aspect-ratio: 1024 / 765;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--ink-700);
+  display: block;
+}
+.lib-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* 미리보기가 없는 예전 작업물 — 자리는 지키되 조용히 */
+.lib-thumb.is-empty { opacity: .5; }
 
 .lib-item-body { flex: 1; min-width: 0; }
 .lib-item-name {

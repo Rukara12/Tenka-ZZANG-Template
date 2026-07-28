@@ -9,7 +9,9 @@ import { measureHoles, visibleRect } from './mask.js';
 import { Interactor } from './interact.js';
 import { TextEditor } from './textedit.js';
 import { UI, ExportDialog, toast } from './ui.js';
-import { exportPng, exportGif, exportVideo, estimateGifSizes, measurePng, copyPng } from './exporter.js';
+import {
+  exportPng, exportGif, exportVideo, estimateGifSizes, measurePng, copyPng, renderThumb,
+} from './exporter.js';
 import { listDocs, saveDoc, deleteDoc, assetIdsOf, timeLabel } from './library.js';
 
 const $ = (id) => document.getElementById(id);
@@ -27,7 +29,47 @@ let lastSig = '';
 let dim = 0;
 let dimTarget = 0;
 let uploadTarget = 'bubble';
-let customFontSeq = 0;
+
+/* ---------- 올린 글꼴 ---------- */
+
+// 예전에는 세션마다 Custom1, Custom2… 로 이름을 새로 지어 등록만 하고 어디에도
+// 두지 않아서, 새로고침하면 사라지고 "다시 넣어 주세요" 라고 알릴 수밖에 없었다.
+// 이름을 고정하고 파일을 저장해 두면 다음에 열어도 그대로 쓰인다.
+//
+// 저장은 blobs 가 아니라 kv 에 한다. blobs 는 keepOnly() 로 정리되는데 글꼴은
+// '어느 작업물도 사진으로 참조하지 않는 키'라 정리 때 지워진다.
+const USER_FONT = 'TenkaUserFont';
+let userFontFace = null;
+let userFontName = '';
+
+async function useFontFile(buffer, label, persist) {
+  const face = new FontFace(USER_FONT, buffer.slice(0));
+  await face.load();
+  if (userFontFace) document.fonts.delete(userFontFace);
+  document.fonts.add(face);
+  userFontFace = face;
+  userFontName = label || '내 글꼴';
+  if (persist) await store.set('userFont', { name: userFontName, buffer });
+}
+
+/** 저장해 둔 글꼴을 다시 등록한다. 상태를 복원하기 전에 불러야 한다. */
+async function restoreUserFont() {
+  const rec = await store.get('userFont');
+  if (!rec?.buffer) return;
+  try {
+    await useFontFile(rec.buffer, rec.name, false);
+  } catch {
+    await store.del('userFont'); // 못 읽는 파일이면 미련 없이 버린다
+  }
+}
+
+function syncFontUi() {
+  const isUser = editor.state.font === USER_FONT;
+  ui.setFontName(isUser ? userFontName : '평택 노을체');
+  const btn = $('font-toggle');
+  btn.hidden = !userFontFace;
+  btn.textContent = isUser ? '기본 글꼴로' : `${userFontName} 로`;
+}
 
 /* ---------- 템플릿 그림 ---------- */
 
@@ -304,7 +346,9 @@ async function restore() {
 
   editor.load(saved);
   if (lost) toast('일부 사진은 되살리지 못했습니다.', 'warn');
-  if (fontLost) toast('올려두셨던 글꼴은 다시 넣어 주세요.', 'warn');
+  // 글꼴은 이제 저장되므로 보통은 여기 걸리지 않는다. 예전 방식(Custom1 같은
+  // 세션용 이름)으로 저장된 작업물을 여는 경우에만 해당한다.
+  if (fontLost) toast('예전에 쓰던 글꼴을 찾지 못해 기본 글꼴로 열었습니다.', 'warn');
   return true;
 }
 
@@ -412,6 +456,7 @@ const exportDialog = new ExportDialog(editor, {
 function refresh() {
   ui.sync();
   ui.setHistory(editor.historyInfo());
+  syncFontUi();
   markDirty();
 }
 
@@ -439,18 +484,20 @@ $('font-input').addEventListener('change', async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
   try {
-    const family = `Custom${++customFontSeq}`;
-    const face = new FontFace(family, await file.arrayBuffer());
-    await face.load();
-    document.fonts.add(face);
-    editor.update((s) => { s.font = family; });
-    ui.setFontName(file.name.replace(/\.[^.]+$/, ''));
+    await useFontFile(await file.arrayBuffer(), file.name.replace(/\.[^.]+$/, ''), true);
+    editor.update((s) => { s.font = USER_FONT; });
     textEditor.layout();
     refresh();
-    toast('글꼴을 바꿨습니다.');
+    toast('글꼴을 바꿨습니다. 다음에 열어도 그대로 쓰입니다.');
   } catch {
     toast('이 글꼴 파일은 읽지 못했습니다.', 'bad');
   }
+});
+
+$('font-toggle').addEventListener('click', () => {
+  editor.update((s) => { s.font = s.font === USER_FONT ? BASE_FONT : USER_FONT; });
+  textEditor.layout();
+  refresh();
 });
 
 /* ---------- 보관함 ---------- */
@@ -462,12 +509,25 @@ function libRow(doc) {
   const row = document.createElement('div');
   row.className = 'lib-item';
   const filled = Object.values(doc.state?.slots || {}).filter(Boolean).length;
-  row.innerHTML = `<span class="lib-item-body">
+  row.innerHTML = `<span class="lib-thumb"></span>
+    <span class="lib-item-body">
       <span class="lib-item-name"></span>
       <span class="lib-item-sub"></span>
     </span>
     <button type="button" class="ghost-btn" data-act="load">불러오기</button>
     <button type="button" class="ghost-btn danger" data-act="del">삭제</button>`;
+
+  // 예전에 저장한 작업물에는 미리보기가 없다 — 자리만 비워 두고 그대로 쓴다.
+  const thumb = row.querySelector('.lib-thumb');
+  if (doc.thumb) {
+    const img = document.createElement('img');
+    img.src = doc.thumb;
+    img.alt = '';
+    thumb.appendChild(img);
+  } else {
+    thumb.classList.add('is-empty');
+  }
+
   row.querySelector('.lib-item-name').textContent = doc.name;
   row.querySelector('.lib-item-sub').textContent =
     `${timeLabel(new Date(doc.savedAt))} · 사진 ${filled}장`;
@@ -516,10 +576,18 @@ $('btn-library').addEventListener('click', async () => {
 });
 $('lib-close').addEventListener('click', () => libDialog.close());
 $('lib-save').addEventListener('click', async () => {
-  const doc = await saveDoc($('lib-name').value, editor.state);
-  $('lib-name').value = '';
-  await renderLibrary();
-  toast(`"${doc.name}" 으로 보관했습니다.`);
+  const btn = $('lib-save');
+  btn.disabled = true;
+  try {
+    // 미리보기를 못 만들어도 보관 자체는 되어야 한다.
+    const thumb = await renderThumb(editor.state, overlayImg).catch(() => null);
+    const doc = await saveDoc($('lib-name').value, editor.state, thumb);
+    $('lib-name').value = '';
+    await renderLibrary();
+    toast(`"${doc.name}" 으로 보관했습니다.`);
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 $('btn-help').addEventListener('click', () => helpDialog.showModal());
@@ -556,8 +624,7 @@ $('btn-reset').addEventListener('click', async () => {
   if (saveState !== 'failed') saveState = 'idle';
   renderSaveState();
   clearOutlineCache();
-  ui.setFontName('평택 노을체');
-  refresh();
+  refresh(); // 글꼴 표시는 syncFontUi 가 상태를 보고 맞춘다
 });
 
 function afterHistory() {
@@ -702,6 +769,10 @@ document.addEventListener('visibilitychange', () => { lastTs = 0; markDirty(); }
       new Promise((r) => setTimeout(r, 2500)),
     ]);
   } catch { /* 글꼴 없이도 진행 */ }
+
+  // 저장해 둔 글꼴을 먼저 등록한다. 이걸 restore() 뒤로 미루면 상태가 가리키는
+  // 글꼴이 아직 없는 것으로 판정돼 기본 글꼴로 되돌려 버린다.
+  await restoreUserFont();
 
   const restored = await restore();
   if (restored) {

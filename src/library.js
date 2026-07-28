@@ -25,13 +25,17 @@ export async function listDocs() {
   return Array.isArray(docs) ? docs : [];
 }
 
-/** 지금 상태를 이름 붙여 보관한다. 최신이 앞으로 온다. */
-export async function saveDoc(name, state) {
+/**
+ * 지금 상태를 이름 붙여 보관한다. 최신이 앞으로 온다.
+ * @param {string} [thumb] 목록에 띄울 미리보기(dataURL). 없어도 동작한다.
+ */
+export async function saveDoc(name, state, thumb) {
   const docs = await listDocs();
   const doc = {
     id: newId(),
     name: (name || '').trim() || stamp(),
     savedAt: Date.now(),
+    thumb: thumb || null,
     state: JSON.parse(JSON.stringify(state)),
   };
   docs.unshift(doc);
