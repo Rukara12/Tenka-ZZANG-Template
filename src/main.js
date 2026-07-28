@@ -557,13 +557,55 @@ $('file-input').addEventListener('change', (e) => {
   if (f) placeFile(f, uploadTarget);
 });
 
-$('dialogue-pick').addEventListener('click', () => {
-  $('dialogue-input').value = '';
-  $('dialogue-input').click();
+/* ---------- AI 대사 받아 오기 ---------- */
+//
+// 파일 고르기 단추는 두지 않는다. 대사는 Gem 답변을 복사해 오는 것이 보통이라
+// 파일로 저장했다가 다시 고르는 길은 손이 더 간다. 파일로 갖고 있다면 캔버스에
+// 끌어다 놓으면 되고(아래 drop 처리), 그 길은 그대로 살아 있다.
+
+const dlgDialog = $('dialogue-dialog');
+
+// href 를 여기서 넣는다 — 주소를 config 한 곳에서만 고치면 되게. 링크로 두는 편이
+// window.open 보다 낫다. 가운데 클릭·우클릭으로 여는 습관이 그대로 통한다.
+Object.assign($('gem-open'), { href: LINKS.gem, target: '_blank', rel: 'noopener' });
+
+function dialogueMsg(text) {
+  const box = $('dialogue-msg');
+  box.hidden = !text;
+  if (text) box.firstElementChild.textContent = text;
+}
+
+$('dialogue-paste').addEventListener('click', async () => {
+  const area = $('dialogue-text');
+  area.value = '';
+  dialogueMsg('');
+  fitDialog(dlgDialog);
+  dlgDialog.showModal();
+
+  // 대개 방금 Gem 에서 복사해 온 참이므로 미리 넣어 준다. 클립보드 읽기는 권한이
+  // 없거나(파이어폭스) 사용자가 막아 두면 조용히 거절당한다 — 그때는 빈 칸에
+  // 직접 붙여넣으면 되니 실패를 알릴 일이 아니다.
+  try {
+    const t = await navigator.clipboard?.readText();
+    if (t && t.trim()) area.value = t;
+  } catch { /* 직접 붙여넣게 둔다 */ }
+  area.focus();
+  area.select();
 });
-$('dialogue-input').addEventListener('change', (e) => {
-  const f = e.target.files?.[0];
-  if (f) readDialogueFile(f);
+
+$('dialogue-cancel').addEventListener('click', () => dlgDialog.close());
+
+$('dialogue-ok').addEventListener('click', () => {
+  const raw = $('dialogue-text').value;
+  if (!raw.trim()) { dialogueMsg('넣을 내용이 없습니다.'); return; }
+
+  const parsed = parseDialogue(raw);
+  if (!parsed) {
+    dialogueMsg('형식을 알아보지 못했습니다. Gem 답변의 코드 블록을 통째로 붙여넣어 주세요.');
+    return;
+  }
+  dlgDialog.close();
+  applyDialogue(parsed);
 });
 
 $('font-input').addEventListener('change', async (e) => {

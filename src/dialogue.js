@@ -39,6 +39,45 @@ function clean(v) {
     .slice(0, MAX_LEN);
 }
 
+/* ---------- 정해진 자리의 줄바꿈 ---------- */
+//
+// 세 도막은 첫머리가 고정돼 있다. 우상단은 "나쨩 이거 봐봐···!" 로 열고, 좌상단은
+// "···" 로 끝나는 문장 둘이며, 좌하단은 "나쨩 미안··· 잘 안 들려···" 로 시작한다.
+// 그 자리의 줄바꿈은 취향이 아니라 형식이므로 받아 읽는 쪽에서 넣는다.
+//
+// 이 일을 AI 지시문에 맡기지 않는 이유가 있다. 규칙을 하나 더 얹으면 나머지 규칙의
+// 준수율이 같이 떨어지고, JSON 문자열 안의 \n 은 모델이 자주 틀린다(진짜 개행을
+// 넣어 JSON 을 깨거나 \\n 으로 두 번 이스케이프한다). 여기서 넣으면 손으로 쓴
+// 대사에도, 다른 데서 가져온 대사에도 똑같이 걸린다.
+//
+// 다만 뼈대를 어긴 글에 억지로 칼을 대면 엉뚱한 데서 끊긴다. 그래서 정해진 무늬가
+// 맞아떨어질 때만 넣고, 안 맞으면 손대지 않는다. 이미 줄바꿈이 있으면 쓴 사람의
+// 뜻으로 보고 그대로 둔다.
+
+/** 말줄임표 표기 흔들림. 가운뎃점 셋이 정석이지만 …·⋯·... 도 들어온다. */
+const ELL = '(?:···|⋯|…|\\.{2,})';
+const re = (s) => new RegExp(s);
+
+const BREAKS = {
+  // 나쨩 이거 봐봐···! ↵ 대충 어쩌구 갓겜···!
+  tr: [[re(`^(나쨩 ?이거 ?봐봐${ELL}!) +`), '$1\n']],
+  // 첫 문장··· ↵ 둘째 문장···   (끝의 ··· 뒤에는 글자가 없으므로 걸리지 않는다)
+  tl: [[re(`^(.{2,}?${ELL}) +(?=\\S)`), '$1\n']],
+  // 나쨩 미안··· ↵ 잘 안 들려··· ↵ 아무튼 …
+  bl: [[re(`^(나쨩 ?미안${ELL}) +(잘 ?안 ?들려${ELL}) +`), '$1\n$2\n']],
+};
+
+/**
+ * 칸의 뼈대에 맞춰 정해진 자리에 줄바꿈을 넣는다.
+ * 무늬가 안 맞거나 이미 줄바꿈이 있으면 원문 그대로 돌려준다.
+ */
+export function breakLines(key, text) {
+  if (typeof text !== 'string' || text.includes('\n')) return text;
+  let out = text;
+  for (const [pattern, into] of BREAKS[key] || []) out = out.replace(pattern, into);
+  return out;
+}
+
 const norm = (k) => String(k).replace(/\s+/g, '').toLowerCase();
 
 function pickGame(obj) {
@@ -110,7 +149,12 @@ function fromLines(raw) {
  */
 export function parseDialogue(raw) {
   if (typeof raw !== 'string' || !raw.trim()) return null;
-  return fromJson(raw) || fromLines(raw);
+  const got = fromJson(raw) || fromLines(raw);
+  if (!got) return null;
+  for (const key of Object.keys(got.texts)) {
+    got.texts[key] = breakLines(key, got.texts[key]);
+  }
+  return got;
 }
 
 /** Gem 지시문에 넣을 형식 설명. 앱에서 그대로 복사해 줄 수 있게 여기 둔다. */

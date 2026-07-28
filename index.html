@@ -204,11 +204,20 @@
         </select>
       </label>
 
-      <button type="button" class="ghost-btn wide" id="dialogue-pick" title="AI 가 만든 대사 파일(JSON·TXT)을 읽어 세 칸에 넣습니다. 파일을 캔버스에 끌어다 놓거나 Ctrl+V 로 붙여넣어도 됩니다.">대사 불러오기</button>
+      <div class="insp-title mt">AI 대사</div>
+      <div class="btn-row">
+        <!-- 주소는 config.js 의 LINKS.gem 하나만 보게 main.js 에서 넣는다. -->
+        <a class="ghost-btn" id="gem-open"
+           title="대사를 지어 주는 Gem 을 새 탭에서 엽니다. 게임 이름을 넣으면 코드 블록이 나옵니다.">Gem 열기</a>
+        <button type="button" class="ghost-btn" id="dialogue-paste"
+                title="Gem 에서 복사한 내용을 붙여넣어 세 칸에 넣습니다. 대사 파일은 캔버스에 끌어다 놓아도 됩니다.">받아 오기</button>
+      </div>
 
+      <!-- 지금 쓰는 글꼴 이름은 제목에 붙인다. 단추들 아래에 홀로 놓으면 그 자체가
+           눌리는 것처럼 보인다 — 바로 밑이 '구버전 에디터·문제 알리기' 링크라 더 그렇다. -->
+      <div class="insp-title mt spread">글꼴 <b id="font-meta">평택 노을체</b></div>
       <button type="button" class="ghost-btn wide" id="font-pick">글꼴 바꾸기</button>
       <button type="button" class="ghost-btn wide" id="font-toggle" hidden></button>
-      <div class="meta" id="font-meta">평택 노을체</div>
 
       <div class="source-info" id="source-info" hidden></div>
 
@@ -356,11 +365,34 @@
   </form>
 </dialog>
 
+<!-- AI 대사 받아 오기 -->
+<dialog id="dialogue-dialog" class="dialog">
+  <form method="dialog" class="dialog-inner">
+    <h2 class="dialog-title">AI 대사 받아 오기</h2>
+
+    <ol class="steps">
+      <li><b>Gem 열기</b>로 새 탭을 열고 게임 이름을 넣습니다.</li>
+      <li>답변으로 나온 코드 블록의 복사 단추를 누릅니다.</li>
+      <li>이 창으로 돌아와 아래 칸에 붙여넣고 <b>넣기</b>를 누릅니다.</li>
+    </ol>
+
+    <textarea id="dialogue-text" class="paste-area" rows="8" spellcheck="false"
+              placeholder='{&#10;  "게임": "게임 이름",&#10;  "우상단": "···",&#10;  "좌상단": "···",&#10;  "좌하단": "···"&#10;}'></textarea>
+
+    <div class="dialog-note">코드 울타리나 앞뒤에 붙은 설명은 알아서 걸러냅니다. 정해진 자리의 줄바꿈도 넣어 드립니다.</div>
+    <div class="notice" id="dialogue-msg" hidden><span></span></div>
+
+    <div class="dialog-actions">
+      <button type="button" class="ghost-btn" id="dialogue-cancel">닫기</button>
+      <button type="button" class="primary-btn" id="dialogue-ok">넣기</button>
+    </div>
+  </form>
+</dialog>
+
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
 <input type="file" id="file-input" accept="image/*" hidden>
 <input type="file" id="font-input" accept=".ttf,.otf,.woff,.woff2" hidden>
-<input type="file" id="dialogue-input" accept=".json,.txt,application/json,text/plain" hidden>
 
 <div class="drop-veil" id="drop-veil" hidden><span>여기에 놓으면 들어갑니다</span></div>
 

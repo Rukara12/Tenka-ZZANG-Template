@@ -87,6 +87,8 @@ export const LINKS = {
   legacy: 'https://Rukara12.github.io/Tenka-ZZANG-Template/old/old.html',
   repo: 'https://github.com/Rukara12/Tenka-ZZANG-Template',
   sgdb: (term) => `https://www.steamgriddb.com/search/grids?term=${encodeURIComponent(term)}`,
+  // 대사를 지어 주는 Gemini Gem. 게임 이름만 넣으면 세 도막을 JSON 으로 내놓는다.
+  gem: 'https://gemini.google.com/gem/0bbb8cb862d9?usp=sharing',
 };
 
 export function defaultState() {

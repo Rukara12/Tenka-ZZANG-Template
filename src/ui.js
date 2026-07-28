@@ -403,7 +403,10 @@ export class UI {
   }
 
   setFontName(name) {
-    $('font-meta').textContent = name;
+    // 제목 줄에 붙어 있어 긴 이름은 …로 잘린다. 전체 이름은 툴팁으로 남긴다.
+    const el = $('font-meta');
+    el.textContent = name;
+    el.title = name;
   }
 }
 
