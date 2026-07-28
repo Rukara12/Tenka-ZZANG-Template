@@ -128,6 +128,7 @@ const MAX_RENDER_SCALE = 3; // 확대했을 때도 또렷하도록. 3배면 3072
 
 let viewZoom = 0; // 0 이면 '맞춤'
 let fitZoom = 1;
+let stageCssScale = 1; // 캔버스 1px 당 스테이지 안 CSS px
 
 // 좁은 화면에서는 .layout 이 세로로 쌓이면서 .stage-area 높이가 '내용에 맞춤'이 된다.
 // 그 높이로 배율을 계산하면 스스로를 물고 도는 순환이 되므로 가로만 본다.
@@ -158,7 +159,14 @@ function applyView() {
 
   // floor 로 깎는다. 반올림하면 '맞춤'일 때 폭이 남는 공간보다 0.5px 커질 수 있고,
   // 그 0.5px 때문에 가로 스크롤이 생겨 터치 화면이 좌우로 흔들린다.
-  stageWrap.style.width = `${Math.max(200, Math.floor(CANVAS.w * z))}px`;
+  const cssW = Math.max(200, Math.floor(CANVAS.w * z));
+  stageWrap.style.width = `${cssW}px`;
+
+  // 캔버스 좌표 → 스테이지 안 CSS 좌표. 문구 편집창을 얹을 때 쓴다.
+  // getBoundingClientRect() 로 재면 안 된다 — 그 값은 화면 크기(zoom)가 곱해진
+  // 값이라, 같은 숫자를 style.left 에 넣으면 배율만큼 더 밀려난다.
+  // 우리가 방금 지정한 폭에서 뽑아 쓰면 편집창과 같은 좌표계가 보장된다.
+  stageCssScale = cssW / CANVAS.w;
 
   // 표시 크기가 정해진 다음에 백업 캔버스 해상도를 맞춘다.
   // UI 크기(zoom)만큼 실제 화면 픽셀도 늘어나므로 같이 곱해야 흐릿해지지 않는다.
@@ -479,7 +487,7 @@ const interactor = new Interactor($('handles'), editor, {
 const textEditor = new TextEditor(
   $('stage-wrap'),
   editor,
-  () => stage.getBoundingClientRect().width / CANVAS.w,
+  () => stageCssScale,
   {
     onChange: () => { markDirty(); queueSync(); },
     onDone: () => markDirty(),
