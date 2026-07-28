@@ -210,8 +210,22 @@ async function decodeWithImageDecoder(buffer, mime) {
   let dec;
   try {
     dec = new ImageDecoder({ data: buffer.slice(0), type: mime });
-    await dec.completed;
-    const total = dec.tracks.selectedTrack?.frameCount || 1;
+
+    // completed 는 '인코딩된 데이터를 다 받았다'는 뜻이지 '장수를 안다'는 뜻이
+    // 아니다. 트랙 정보는 tracks.ready 로 따로 기다려야 한다. 이걸 빼먹으면
+    // selectedTrack 이 아직 없어서 장수를 1 로 읽고, 움짤이 정지 그림으로 들어간다.
+    //
+    // GIF 에서는 이 실수가 드러나지 않았다. 예전 코드는 track 이 없으면 예외가 나서
+    // 자체 GIF 디코더로 떨어졌고 그쪽이 제대로 읽었기 때문이다. WebP 는 받아 줄
+    // 폴백이 없으니 그대로 한 장이 된다.
+    await Promise.all([dec.completed, dec.tracks.ready]);
+
+    const track = dec.tracks.selectedTrack;
+    if (!track) throw new Error('트랙 없음');
+    const total = track.frameCount || 1;
+    // 여러 장인 걸 알고 왔는데 한 장으로 읽혔다면 제대로 못 읽은 것이다.
+    // 조용히 정지 그림으로 만들지 말고 폴백에 넘긴다.
+    if (total < 2 && mime !== 'image/gif') throw new Error('프레임을 못 셈');
 
     // 크기는 첫 장을 풀어 봐야 안다. 예산 계산에 필요하므로 먼저 한 장만 본다.
     const probe = await dec.decode({ frameIndex: 0 });
